@@ -108,8 +108,10 @@ func UpdateLLMPrice(ctx context.Context) error {
 			modelID := strings.ToLower(priceModel.ID)
 			modelFamily := strings.ToLower(priceModel.Family)
 
-			// 仅保留包含文本输出的非嵌入模型。
-			if modelID == "" || !slices.Contains(priceModel.Modalities.Output, "text") || strings.Contains(modelID, "embed") || strings.Contains(modelFamily, "embed") {
+			// 保留文本或图片输出的非嵌入模型。
+			hasTextOutput := slices.Contains(priceModel.Modalities.Output, "text")
+			hasImageOutput := slices.Contains(priceModel.Modalities.Output, "image")
+			if modelID == "" || (!hasTextOutput && !hasImageOutput) || strings.Contains(modelID, "embed") || strings.Contains(modelFamily, "embed") {
 				continue
 			}
 
