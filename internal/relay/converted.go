@@ -22,10 +22,10 @@ import (
 
 // convertedStreamResponse 保存已验证首事件的客户端协议转换流。
 type convertedStreamResponse struct {
-	protocol *relayProtocol                         // protocol 负责校验和聚合客户端协议事件。
+	protocol *relayProtocol                          // protocol 负责校验和聚合客户端协议事件。
 	stream   streams.Stream[*httpclient.StreamEvent] // AxonHub 转换后的客户端事件流。
-	first    *httpclient.StreamEvent                // 已验证的第一个非空事件。
-	terminal bool                                   // 首事件已经正常结束响应流。
+	first    *httpclient.StreamEvent                 // 已验证的第一个非空事件。
+	terminal bool                                    // 首事件已经正常结束响应流。
 }
 
 // forwardMiddleware 应用渠道覆盖并收集 AxonHub pipeline 状态。
@@ -44,7 +44,7 @@ func (f *forwarder) executeConverted(ctx context.Context, modelName string, chan
 		return upstreamResult{err: err}
 	}
 	request.Model = modelName
-	outbound, err := newOutbound(channel.Type, channel.BaseURL, channel.Key)
+	outbound, err := newOutboundForRequest(request, channel)
 	if err != nil {
 		return upstreamResult{err: fmt.Errorf("%w: %v", errUnsupportedTarget, err)}
 	}
