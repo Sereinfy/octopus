@@ -132,13 +132,45 @@ func importDB(c *gin.Context) {
 		}
 	}
 
+	for i := range dump.Channels {
+		dump.Channels[i].Model = normalizeChannelModelList(dump.Channels[i].Model)
+		dump.Channels[i].CustomModel = normalizeChannelModelList(dump.Channels[i].CustomModel)
+		dump.Channels[i].Model = excludeCustomChannelModels(dump.Channels[i].Model, dump.Channels[i].CustomModel)
+	}
+	seenLLMNames := make(map[string]struct{}, len(dump.LLMInfos))
+	for i := range dump.LLMInfos {
+		dump.LLMInfos[i].Name = strings.ToLower(strings.TrimSpace(dump.LLMInfos[i].Name))
+		if dump.LLMInfos[i].Name == "" {
+			resp.Error(c, http.StatusBadRequest, "model price name cannot be empty")
+			return
+		}
+		if _, ok := seenLLMNames[dump.LLMInfos[i].Name]; ok {
+			resp.Error(c, http.StatusBadRequest, "duplicate model price: "+dump.LLMInfos[i].Name)
+			return
+		}
+		seenLLMNames[dump.LLMInfos[i].Name] = struct{}{}
+	}
+	for i := range dump.Groups {
+		if dump.Groups[i].Mode == "" {
+			dump.Groups[i].Mode = model.GroupModeManual
+		}
+		model.NormalizeGroupRelayConfig(&dump.Groups[i].RelayConfig)
+		if dump.Groups[i].Mode != model.GroupModeManual && dump.Groups[i].Mode != model.GroupModeFailover {
+			resp.Error(c, http.StatusBadRequest, "invalid group relay mode")
+			return
+		}
+	}
+
 	result, err := op.DBImportIncremental(c.Request.Context(), &dump)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	_ = op.InitCache()
+	if err := op.InitCache(); err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	resp.Success(c, result)
 }
