@@ -113,6 +113,7 @@ type conversionMiddleware struct {
 	pipeline.DummyMiddleware               // 提供本次无需处理的其余 pipeline 中间件方法。
 	channel                  model.Channel // 本轮上游请求使用的渠道配置。
 	format                   llm.APIFormat // 上游渠道协议, 用于校验统一响应终态。
+	clientFormat             llm.APIFormat // 客户端协议, 用于校验图片响应内容。
 	model                    string        // 分组成员配置的真实上游模型名。
 	rawBody                  []byte        // 上游非流式响应或错误的原始正文。
 	usage                    *llm.Usage    // 非流式统一响应中确认的用量。
@@ -149,6 +150,11 @@ func (m *conversionMiddleware) OnOutboundLlmResponse(_ context.Context, response
 	if err := validateResponse(m.format, response); err != nil {
 		return nil, err
 	}
+	if m.clientFormat != m.format {
+		if err := validateResponse(m.clientFormat, response); err != nil {
+			return nil, err
+		}
+	}
 	m.usage = response.Usage
 	return response, nil
 }
@@ -178,7 +184,12 @@ func sendConverted(ctx context.Context, format llm.APIFormat, raw *httpclient.Re
 	if err != nil {
 		return nil, err
 	}
-	middleware := &conversionMiddleware{channel: channel, format: outbound.APIFormat(), model: modelName}
+	middleware := &conversionMiddleware{
+		channel:      channel,
+		format:       outbound.APIFormat(),
+		clientFormat: format,
+		model:        modelName,
+	}
 	processor := pipeline.NewFactory(httpclient.NewHttpClientWithClient(client)).Pipeline(
 		inbound,
 		outbound,

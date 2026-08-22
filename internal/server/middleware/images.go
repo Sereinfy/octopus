@@ -12,7 +12,12 @@ const maxImageRequestBody int64 = 256 << 20
 func ImageBodyLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxImageRequestBody {
-			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error": gin.H{
+					"message": "image request body is too large",
+					"type":    "invalid_request_error",
+				},
+			})
 			return
 		}
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImageRequestBody)

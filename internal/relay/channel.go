@@ -24,7 +24,11 @@ func buildOutbound(channel model.Channel, format llm.APIFormat) (transformer.Out
 	provider := channel.Type
 	if isImageFormat(format) {
 		switch provider {
-		case model.ChannelProviderOpenAI, model.ChannelProviderOpenAIResponses:
+		case model.ChannelProviderOpenAI, model.ChannelProviderGemini, model.ChannelProviderVolcengine:
+			// These providers expose image-capable outbound transformers.
+		case model.ChannelProviderOpenAIResponses:
+			// Keep the established compatibility rule: Responses image requests
+			// use the OpenAI Images outbound.
 			provider = model.ChannelProviderOpenAI
 		default:
 			return nil, false, fmt.Errorf("unsupported channel provider for image request: %s", channel.Type)
@@ -98,13 +102,4 @@ func applyChannelConfig(channel model.Channel, request *httpclient.Request) erro
 		request.Headers.Set(header.HeaderKey, header.HeaderValue)
 	}
 	return nil
-}
-
-// applyChannelOptions keeps the image relay compatibility surface while sharing
-// the v0.11 channel override implementation.
-func applyChannelOptions(channel *model.Channel, request *httpclient.Request) error {
-	if channel == nil {
-		return nil
-	}
-	return applyChannelConfig(*channel, request)
 }
