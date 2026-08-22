@@ -19,7 +19,7 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/openai/responses"
 )
 
-var requestIDs atomic.Uint64 // requestIDs 分配进程内严格递增的请求 ID。
+var requestIDs atomic.Uint64                             // requestIDs 分配进程内严格递增的请求 ID。
 var errNoActiveChannel = errors.New("no active channel") // errNoActiveChannel 表示分组尚未选择活动渠道。
 
 // execution 保存单个客户端请求的全部可变执行状态。
@@ -58,7 +58,7 @@ func (e *execution) execute() {
 		e.protocol.writeError(e.ctx, http.StatusBadRequest, err)
 		return
 	}
-	e.log.RequestBody = string(raw.Body)
+	e.log.RequestBody = requestBodyForLog(e.protocol, raw)
 	parsed, err := e.protocol.inbound.TransformRequest(ctx, cloneRequest(raw, ctx))
 	if err != nil {
 		e.emit(LogEventRequestStarted, nil)
@@ -306,7 +306,7 @@ func (e *execution) finish(state RequestState, err error, responseBody []byte, u
 		e.log.Error = err.Error()
 	}
 	if len(responseBody) > 0 {
-		e.log.ResponseBody = string(responseBody)
+		e.log.ResponseBody = responseBodyForLog(e.protocol, responseBody)
 	}
 	if usage != nil {
 		e.log.InputTokens = usage.PromptTokens

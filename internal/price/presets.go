@@ -13,7 +13,9 @@ var llmPriceLock sync.RWMutex
 
 var llmPrice = map[string]model.LLMPrice{
 	"gpt-4o": {Input: 2.5, Output: 10, CacheRead: 1.25, CacheWrite: 0},
-	"gpt-image-1.5": {Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	"gpt-image-2": {Input: 5, Output: 30, CacheRead: 1.25, CacheWrite: 0},
+	"gpt-image-1": {Input: 5, Output: 40, CacheRead: 1.25, CacheWrite: 0},
+	"gpt-image-1.5": {Input: 5, Output: 32, CacheRead: 1.25, CacheWrite: 0},
 	"gpt-5.3-chat-latest": {Input: 1.75, Output: 14, CacheRead: 0.175, CacheWrite: 0},
 	"gpt-5-nano": {Input: 0.05, Output: 0.4, CacheRead: 0.005, CacheWrite: 0},
 	"gpt-4o-mini": {Input: 0.15, Output: 0.6, CacheRead: 0.075, CacheWrite: 0},
@@ -21,7 +23,7 @@ var llmPrice = map[string]model.LLMPrice{
 	"o1-pro": {Input: 150, Output: 600, CacheRead: 0, CacheWrite: 0},
 	"gpt-5.5-pro": {Input: 30, Output: 180, CacheRead: 0, CacheWrite: 0},
 	"gpt-4-turbo": {Input: 10, Output: 30, CacheRead: 0, CacheWrite: 0},
-	"gpt-image-1-mini": {Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	"gpt-image-1-mini": {Input: 2, Output: 8, CacheRead: 0.2, CacheWrite: 0},
 	"gpt-4": {Input: 30, Output: 60, CacheRead: 0, CacheWrite: 0},
 	"gpt-5.6-sol": {Input: 5, Output: 30, CacheRead: 0.5, CacheWrite: 6.25},
 	"o3-pro": {Input: 20, Output: 80, CacheRead: 0, CacheWrite: 0},

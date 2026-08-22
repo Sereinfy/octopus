@@ -27,9 +27,9 @@ type upstreamResult struct {
 
 // forwarder 执行一次真实上游请求，不选择渠道，也不写客户端响应。
 type forwarder struct {
-	protocol  *relayProtocol // 客户端协议规则。
-	request   *relayRequest  // 可重复构造的客户端请求。
-	client    *http.Client   // 渠道对应的 HTTP 客户端。
+	protocol *relayProtocol // 客户端协议规则。
+	request  *relayRequest  // 可重复构造的客户端请求。
+	client   *http.Client   // 渠道对应的 HTTP 客户端。
 }
 
 // executeUpstream 准备并执行上游请求，验证响应后返回上游阶段结果。
@@ -54,6 +54,14 @@ func validateUnifiedResponse(protocol llm.APIFormat, response *llm.Response) err
 	if response == nil {
 		return errors.New("upstream response is empty")
 	}
+	if protocol == llm.APIFormatOpenAIImageGeneration ||
+		protocol == llm.APIFormatOpenAIImageEdit ||
+		protocol == llm.APIFormatOpenAIImageVariation {
+		if !imageResponseHasData(response) {
+			return errors.New("upstream image response is empty")
+		}
+		return nil
+	}
 	if protocol != llm.APIFormatOpenAIResponse || len(response.Choices) == 0 || response.Choices[0].FinishReason == nil {
 		return nil
 	}
@@ -71,7 +79,8 @@ func validateUnifiedResponse(protocol llm.APIFormat, response *llm.Response) err
 
 // applyChannelOptions 应用渠道参数覆盖和自定义 Header。
 func applyChannelOptions(channel *model.Channel, request *httpclient.Request) error {
-	if channel.ParamOverride != nil && *channel.ParamOverride != "" {
+	contentType := strings.ToLower(request.Headers.Get("Content-Type"))
+	if channel.ParamOverride != nil && *channel.ParamOverride != "" && strings.Contains(contentType, "application/json") {
 		var overrides map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(*channel.ParamOverride), &overrides); err != nil {
 			return fmt.Errorf("invalid channel parameter override: %w", err)
