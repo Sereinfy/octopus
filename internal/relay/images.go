@@ -5,52 +5,35 @@ import (
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/transformer"
-	"github.com/looplj/axonhub/llm/transformer/openai"
 )
 
-// HandleImageGenerations 处理 OpenAI 图片生成请求。
+// relayProtocol is retained as a small format descriptor for image log redaction.
+// Request execution uses the v0.11 Forward pipeline directly.
+type relayProtocol struct {
+	format   llm.APIFormat
+	route    string
+	authType string
+	inbound  transformer.Inbound
+}
+
 func HandleImageGenerations(c *gin.Context) {
-	(&execution{ctx: c, protocol: imageProtocol(
-		llm.APIFormatOpenAIImageGeneration,
-		"/images/generations",
-		openai.NewImageGenerationInboundTransformer(),
-	)}).execute()
+	Forward(llm.APIFormatOpenAIImageGeneration)(c)
 }
 
-// HandleImageEdits 处理 OpenAI 图片编辑请求。
 func HandleImageEdits(c *gin.Context) {
-	(&execution{ctx: c, protocol: imageProtocol(
-		llm.APIFormatOpenAIImageEdit,
-		"/images/edits",
-		openai.NewImageEditInboundTransformer(),
-	)}).execute()
+	Forward(llm.APIFormatOpenAIImageEdit)(c)
 }
 
-// HandleImageVariations 处理 OpenAI 图片变体请求。
 func HandleImageVariations(c *gin.Context) {
-	(&execution{ctx: c, protocol: imageProtocol(
-		llm.APIFormatOpenAIImageVariation,
-		"/images/variations",
-		openai.NewImageVariationInboundTransformer(),
-	)}).execute()
+	Forward(llm.APIFormatOpenAIImageVariation)(c)
 }
 
 func imageProtocol(format llm.APIFormat, route string, inbound transformer.Inbound) *relayProtocol {
-	return &relayProtocol{
-		format:   format,
-		route:    route,
-		authType: httpclient.AuthTypeBearer,
-		inbound:  inbound,
-	}
+	return &relayProtocol{format: format, route: route, authType: httpclient.AuthTypeBearer, inbound: inbound}
 }
 
 func isImageProtocol(protocol *relayProtocol) bool {
-	if protocol == nil {
-		return false
-	}
-	return protocol.format == llm.APIFormatOpenAIImageGeneration ||
-		protocol.format == llm.APIFormatOpenAIImageEdit ||
-		protocol.format == llm.APIFormatOpenAIImageVariation
+	return protocol != nil && isImageFormat(protocol.format)
 }
 
 func imageResponseHasData(response *llm.Response) bool {

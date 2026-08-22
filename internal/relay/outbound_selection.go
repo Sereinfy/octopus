@@ -1,12 +1,15 @@
 package relay
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/transformer"
 )
+
+var errUnsupportedTarget = errors.New("unsupported relay target")
 
 // newOutboundForRequest keeps normal channel routing unchanged while applying
 // the OpenAI Images compatibility rule to image requests.

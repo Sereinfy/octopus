@@ -110,11 +110,19 @@ func sendPassthroughStream(ctx context.Context, format llm.APIFormat, request *h
 
 // conversionMiddleware 保存跨协议 pipeline 单次调用需要应用和取得的状态。
 type conversionMiddleware struct {
-	pipeline.DummyMiddleware // 提供本次无需处理的其余 pipeline 中间件方法。
-	channel model.Channel // 本轮上游请求使用的渠道配置。
-	format  llm.APIFormat // 上游渠道协议, 用于校验统一响应终态。
-	rawBody []byte        // 上游非流式响应或错误的原始正文。
-	usage   *llm.Usage    // 非流式统一响应中确认的用量。
+	pipeline.DummyMiddleware               // 提供本次无需处理的其余 pipeline 中间件方法。
+	channel                  model.Channel // 本轮上游请求使用的渠道配置。
+	format                   llm.APIFormat // 上游渠道协议, 用于校验统一响应终态。
+	model                    string        // 分组成员配置的真实上游模型名。
+	rawBody                  []byte        // 上游非流式响应或错误的原始正文。
+	usage                    *llm.Usage    // 非流式统一响应中确认的用量。
+}
+
+func (m *conversionMiddleware) OnInboundLlmRequest(_ context.Context, request *llm.Request) (*llm.Request, error) {
+	if request != nil && m.model != "" {
+		request.Model = m.model
+	}
+	return request, nil
 }
 
 // OnOutboundRawRequest 在转换后的上游请求上应用渠道参数和自定义 Header。
@@ -146,22 +154,31 @@ func (m *conversionMiddleware) OnOutboundLlmResponse(_ context.Context, response
 }
 
 // sendConverted 经 axonhub pipeline 把客户端请求转换成渠道协议后请求上游, 响应再转换回客户端协议。
-func sendConverted(ctx context.Context, format llm.APIFormat, raw *httpclient.Request, channel model.Channel, outbound transformer.Outbound, streaming bool) (*upstreamResponse, error) {
-	var inbound transformer.Inbound
+func inboundForFormat(format llm.APIFormat) transformer.Inbound {
 	switch format {
 	case llm.APIFormatOpenAIResponse:
-		inbound = responses.NewInboundTransformer()
+		return responses.NewInboundTransformer()
 	case llm.APIFormatAnthropicMessage:
-		inbound = anthropic.NewInboundTransformer()
+		return anthropic.NewInboundTransformer()
+	case llm.APIFormatOpenAIImageGeneration:
+		return openai.NewImageGenerationInboundTransformer()
+	case llm.APIFormatOpenAIImageEdit:
+		return openai.NewImageEditInboundTransformer()
+	case llm.APIFormatOpenAIImageVariation:
+		return openai.NewImageVariationInboundTransformer()
 	default:
-		inbound = openai.NewInboundTransformer()
+		return openai.NewInboundTransformer()
 	}
+}
+
+func sendConverted(ctx context.Context, format llm.APIFormat, raw *httpclient.Request, channel model.Channel, outbound transformer.Outbound, streaming bool, modelName string) (*upstreamResponse, error) {
+	inbound := inboundForFormat(format)
 
 	client, err := helper.ChannelHttpClient(&channel)
 	if err != nil {
 		return nil, err
 	}
-	middleware := &conversionMiddleware{channel: channel, format: outbound.APIFormat()}
+	middleware := &conversionMiddleware{channel: channel, format: outbound.APIFormat(), model: modelName}
 	processor := pipeline.NewFactory(httpclient.NewHttpClientWithClient(client)).Pipeline(
 		inbound,
 		outbound,
