@@ -3,7 +3,6 @@ package relay
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -18,23 +17,12 @@ import (
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/transformer"
-	"github.com/looplj/axonhub/llm/transformer/anthropic"
-	"github.com/looplj/axonhub/llm/transformer/openai"
-	"github.com/looplj/axonhub/llm/transformer/openai/responses"
 	"github.com/tidwall/sjson"
 )
 
 // Forward 按客户端协议承载一个请求的完整转发过程: 解析请求, 定位分组, 循环选目标请求上游, 直至提交响应或请求结束。
 func Forward(format llm.APIFormat) gin.HandlerFunc {
-	var inbound transformer.Inbound
-	switch format {
-	case llm.APIFormatOpenAIResponse:
-		inbound = responses.NewInboundTransformer()
-	case llm.APIFormatAnthropicMessage:
-		inbound = anthropic.NewInboundTransformer()
-	default:
-		inbound = openai.NewInboundTransformer()
-	}
+	inbound := inboundForFormat(format)
 
 	return func(c *gin.Context) {
 		// 完整读取客户端请求, 正文先登记到请求状态, 后续每轮直接改写为当前目标请求。
@@ -44,30 +32,29 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			return
 		}
 
-		// 此处只读取选组和分流所需字段; 完整协议校验由同协议上游或跨协议 pipeline 完成。
-		var metadata struct {
-			Model     string `json:"model"`  // 客户端请求的分组名称。
-			Streaming bool   `json:"stream"` // 客户端是否请求流式响应。
-		}
-		if err := json.Unmarshal(raw.Body, &metadata); err != nil {
+		// 统一解析同时支持 JSON 和 multipart 图片请求, 仅用于路由元数据。
+		parsed, err := inbound.TransformRequest(c.Request.Context(), raw)
+		if err != nil {
 			rejectRequest(c, inbound, err)
 			return
 		}
+		metadataModel := parsed.Model
+		metadataStreaming := parsed.Stream != nil && *parsed.Stream
 
 		// API Key 限定了模型范围时只放行范围内的模型, 为空表示不限制。
-		if allowed := c.GetString("supported_models"); allowed != "" && !slices.Contains(strings.Split(allowed, ","), metadata.Model) {
+		if allowed := c.GetString("supported_models"); allowed != "" && !slices.Contains(strings.Split(allowed, ","), metadataModel) {
 			rejectRequest(c, inbound, errors.New("model not supported by this api key"))
 			return
 		}
 
 		// 客户端请求的模型名称即分组名称; 分组不存在说明模型名错误, 等待也不会出现该分组。
-		if _, err := op.GroupGetByName(metadata.Model); err != nil {
+		if _, err := op.GroupGetByName(metadataModel); err != nil {
 			rejectRequest(c, inbound, errors.New("model not found"))
 			return
 		}
 
 		// 登记进程内请求状态, 返回的记录是后续全部状态写入和前端可视化推送的入口。
-		request := newRequestState(metadata.Model, string(raw.Body), c.GetInt("api_key_id"))
+		request := newRequestState(metadataModel, requestBodyForLog(format, raw), c.GetInt("api_key_id"))
 		ctx := c.Request.Context()
 		failedItemID := 0 // 当前累计连续失败次数的成员 ID。
 		failures := 0     // 该成员包含首次请求的连续失败次数。
@@ -79,7 +66,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			}
 
 			// 分组配置和成员随时可改, 故每轮重新读取; 分组被删除时等待它重新出现。
-			group, err := op.GroupGetByName(metadata.Model)
+			group, err := op.GroupGetByName(metadataModel)
 			if err != nil {
 				if !request.wait(ctx, model.DefaultGroupRelayConfig().MemberRetryIntervalSeconds) {
 					return
@@ -115,14 +102,16 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			}
 
 			// 将分组成员配置的真实模型写入本轮上游请求。
-			raw.Body, err = sjson.SetBytes(raw.Body, "model", channelModel.Name)
-			if err != nil {
-				request.markFailed(err, "", nil)
-				rejectRequest(c, inbound, err)
-				return
+			if !isImageFormat(format) {
+				raw.Body, err = sjson.SetBytes(raw.Body, "model", channelModel.Name)
+				if err != nil {
+					request.markFailed(err, "", nil)
+					rejectRequest(c, inbound, err)
+					return
+				}
 			}
 			// OpenAI Chat 流式响应需显式要求上游在末尾附带用量。
-			if metadata.Streaming && format == llm.APIFormatOpenAIChatCompletion {
+			if metadataStreaming && format == llm.APIFormatOpenAIChatCompletion {
 				raw.Body, err = sjson.SetBytes(raw.Body, "stream_options.include_usage", true)
 				if err != nil {
 					request.markFailed(err, "", nil)
@@ -149,7 +138,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			if err == nil {
 				timeoutSeconds := group.RelayConfig.MemberNonStreamResponseTimeoutSeconds // 非流式等待完整响应, 流式分支改为首事件超时。
 				timeoutErr := errors.New("upstream non-stream response timeout")          // 具体错误用于区分超时与人工中止。
-				if metadata.Streaming {
+				if metadataStreaming {
 					timeoutSeconds = group.RelayConfig.MemberStreamFirstEventTimeoutSeconds
 					timeoutErr = errors.New("upstream stream first event timeout")
 				}
@@ -159,9 +148,9 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				})
 				// 客户端与渠道协议一致时直接透传, 其余组合通过 pipeline 转换。
 				if passthrough {
-					result, err = sendPassthrough(roundCtx, format, raw, channel, outbound, metadata.Streaming)
+					result, err = sendPassthrough(roundCtx, format, raw, channel, outbound, metadataStreaming)
 				} else {
-					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadata.Streaming)
+					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadataStreaming, channelModel.Name)
 				}
 				// 上游调用返回即结束首响应等待; Stop 失败说明已到期, 主动取消可避免等待异步回调完成。
 				if !timeoutTimer.Stop() {
@@ -223,7 +212,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			}
 
 			// 非流式响应已经完整取得, 提交后一次写给客户端。
-			if !metadata.Streaming {
+			if !metadataStreaming {
 				cancelRound()
 				if c.Writer.Header().Get("Content-Type") == "" {
 					c.Header("Content-Type", "application/json")
@@ -241,13 +230,13 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				}
 				if err != nil {
 					if ctx.Err() != nil {
-						request.markCanceled(ctx.Err(), string(result.body), result.usage)
+						request.markCanceled(ctx.Err(), responseBodyForLog(format, result.body), result.usage)
 					} else {
-						request.markFailed(err, string(result.body), result.usage)
+						request.markFailed(err, responseBodyForLog(format, result.body), result.usage)
 					}
 					return
 				}
-				request.markSucceeded(string(result.body), result.usage)
+				request.markSucceeded(responseBodyForLog(format, result.body), result.usage)
 				return
 			}
 
@@ -313,13 +302,13 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
 			if err != nil {
 				if ctx.Err() != nil {
-					request.markCanceled(ctx.Err(), string(responseBody), result.usage)
+					request.markCanceled(ctx.Err(), responseBodyForLog(format, responseBody), result.usage)
 				} else {
-					request.markFailed(err, string(responseBody), result.usage)
+					request.markFailed(err, responseBodyForLog(format, responseBody), result.usage)
 				}
 				return
 			}
-			request.markSucceeded(string(responseBody), result.usage)
+			request.markSucceeded(responseBodyForLog(format, responseBody), result.usage)
 			return
 		}
 	}

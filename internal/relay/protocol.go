@@ -162,6 +162,9 @@ func validateResponse(format llm.APIFormat, response *llm.Response) error {
 	if response == nil {
 		return errors.New("upstream response is empty")
 	}
+	if isImageFormat(format) {
+		return validateImageResponse(response)
+	}
 	if format != llm.APIFormatOpenAIResponse || len(response.Choices) == 0 || response.Choices[0].FinishReason == nil {
 		return nil
 	}
