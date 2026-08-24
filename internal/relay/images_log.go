@@ -1,8 +1,13 @@
 package relay
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"path/filepath"
 	"strings"
 
 	"github.com/looplj/axonhub/llm"
@@ -20,6 +25,9 @@ func requestBodyForLog(format llm.APIFormat, request *httpclient.Request) string
 
 	contentType := request.Headers.Get("Content-Type")
 	if strings.Contains(strings.ToLower(contentType), "multipart/") {
+		if body, ok := multipartImageRequestForLog(contentType, request.Body); ok {
+			return body
+		}
 		return fmt.Sprintf(`{"content_type":%q,"body_bytes":%d}`, contentType, len(request.Body))
 	}
 
@@ -35,8 +43,14 @@ func requestBodyForLog(format llm.APIFormat, request *httpclient.Request) string
 	return string(body)
 }
 
-// responseBodyForLog 避免将生成图片的 base64 数据写入 Relay 日志。
+// responseBodyForLog 保持旧调用方的脱敏行为; 成功终态使用 responseBodyForLogStatus。
 func responseBodyForLog(format llm.APIFormat, body []byte) string {
+	return responseBodyForLogStatus(format, body, false)
+}
+
+// responseBodyForLogStatus 避免将生成图片的 base64 数据写入 Relay 日志。
+// success 仅在最终响应已完整交付客户端时为 true。
+func responseBodyForLogStatus(format llm.APIFormat, body []byte, success bool) string {
 	if !isImageFormat(format) || len(body) == 0 {
 		return string(body)
 	}
@@ -52,14 +66,103 @@ func responseBodyForLog(format llm.APIFormat, body []byte) string {
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Sprintf(`{"content_type":"application/json","body_bytes":%d}`, len(body))
 	}
+	marker := "[redacted]"
+	if success {
+		marker = "success"
+	}
 	for i := range payload.Data {
-		payload.Data[i].B64JSON = "[redacted]"
+		if payload.Data[i].B64JSON != "" {
+			payload.Data[i].B64JSON = marker
+		}
 	}
 	redacted, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Sprintf(`{"content_type":"application/json","body_bytes":%d}`, len(body))
 	}
 	return string(redacted)
+}
+
+// multipartImageRequestForLog extracts only safe multipart metadata. Binary parts
+// are intentionally drained by the multipart reader but never copied to the log.
+func multipartImageRequestForLog(contentType string, body []byte) (string, bool) {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || !strings.HasPrefix(strings.ToLower(mediaType), "multipart/") || params["boundary"] == "" {
+		return "", false
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+	filenames := make([]string, 0, 2)
+	referenceCount := 0
+	maskFilename := ""
+	maskPresent := false
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", false
+		}
+
+		fieldName := part.FormName()
+		filename := safeImageFilename(part.FileName())
+		isImagePart := filename != "" || strings.HasPrefix(strings.ToLower(part.Header.Get("Content-Type")), "image/")
+		switch fieldName {
+		case "image", "image[]":
+			if isImagePart {
+				referenceCount++
+				if filename != "" {
+					filenames = append(filenames, filename)
+				}
+			}
+		case "mask":
+			if isImagePart {
+				maskPresent = true
+				if filename != "" {
+					maskFilename = filename
+				}
+			}
+		}
+	}
+
+	payload := map[string]any{
+		"content_type":          contentType,
+		"reference_image_count": referenceCount,
+	}
+	if len(filenames) > 0 {
+		payload["reference_images"] = filenames
+	}
+	if maskFilename != "" {
+		payload["mask"] = maskFilename
+	} else if maskPresent {
+		payload["mask_present"] = true
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
+}
+
+func safeImageFilename(filename string) string {
+	filename = strings.ReplaceAll(filename, "\\", "/")
+	filename = filepath.Base(filename)
+	filename = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, filename)
+	filename = strings.TrimSpace(filename)
+	if filename == "" || filename == "." || filename == "/" {
+		return ""
+	}
+	if len(filename) > 256 {
+		filename = filename[:256]
+	}
+	return filename
 }
 
 func redactImageFields(payload map[string]any) {

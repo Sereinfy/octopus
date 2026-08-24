@@ -230,13 +230,13 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				}
 				if err != nil {
 					if ctx.Err() != nil {
-						request.markCanceled(ctx.Err(), responseBodyForLog(format, result.body), result.usage)
+						request.markCanceled(ctx.Err(), responseBodyForLogStatus(format, result.body, false), result.usage)
 					} else {
-						request.markFailed(err, responseBodyForLog(format, result.body), result.usage)
+						request.markFailed(err, responseBodyForLogStatus(format, result.body, false), result.usage)
 					}
 					return
 				}
-				request.markSucceeded(responseBodyForLog(format, result.body), result.usage)
+				request.markSucceeded(responseBodyForLogStatus(format, result.body, true), result.usage)
 				return
 			}
 
@@ -302,13 +302,13 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
 			if err != nil {
 				if ctx.Err() != nil {
-					request.markCanceled(ctx.Err(), responseBodyForLog(format, responseBody), result.usage)
+					request.markCanceled(ctx.Err(), responseBodyForLogStatus(format, responseBody, false), result.usage)
 				} else {
-					request.markFailed(err, responseBodyForLog(format, responseBody), result.usage)
+					request.markFailed(err, responseBodyForLogStatus(format, responseBody, false), result.usage)
 				}
 				return
 			}
-			request.markSucceeded(responseBodyForLog(format, responseBody), result.usage)
+			request.markSucceeded(responseBodyForLogStatus(format, responseBody, true), result.usage)
 			return
 		}
 	}
