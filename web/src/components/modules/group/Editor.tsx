@@ -281,6 +281,7 @@ export function GroupEditor({
     ), [channelsData]);
 
     const [groupName, setGroupName] = useState(initial?.name ?? '');
+    const [showGroupNameCandidates, setShowGroupNameCandidates] = useState(false);
     const [mode, setMode] = useState<GroupMode>(initial?.mode ?? 'manual');
     const [relayConfig, setRelayConfig] = useState<GroupRelayConfig>(() => ({
         ...defaultRelayConfig,
@@ -290,6 +291,12 @@ export function GroupEditor({
     const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
 
     const groupKey = normalizeKey(groupName);
+    const groupNameCandidates = useMemo(() => {
+        const query = groupName.trim().toLowerCase();
+        return [...new Set(selectedMembers.map((member) => member.name.trim()).filter(Boolean))]
+            .filter((name) => !query || name.toLowerCase().includes(query))
+            .sort((a, b) => a.localeCompare(b));
+    }, [groupName, selectedMembers]);
 
     const matchedModelChannels = useMemo(() => {
         if (!groupKey) return [];
@@ -355,12 +362,47 @@ export function GroupEditor({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Field>
                             <FieldLabel htmlFor="group-name">{t('form.name')}</FieldLabel>
-                            <Input
-                                id="group-name"
-                                value={groupName}
-                                onChange={(e) => setGroupName(e.target.value)}
-                                className="rounded-xl"
-                            />
+                            <div className="relative">
+                                <Input
+                                    id="group-name"
+                                    value={groupName}
+                                    onChange={(e) => {
+                                        setGroupName(e.target.value);
+                                        setShowGroupNameCandidates(true);
+                                    }}
+                                    onFocus={() => setShowGroupNameCandidates(true)}
+                                    onBlur={() => window.setTimeout(() => setShowGroupNameCandidates(false), 100)}
+                                    role="combobox"
+                                    aria-autocomplete="list"
+                                    aria-expanded={showGroupNameCandidates && groupNameCandidates.length > 0}
+                                    aria-controls="group-name-candidates"
+                                    className="rounded-xl"
+                                />
+                                {showGroupNameCandidates && groupNameCandidates.length > 0 && (
+                                    <div
+                                        id="group-name-candidates"
+                                        role="listbox"
+                                        className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+                                    >
+                                        {groupNameCandidates.map((name) => (
+                                            <button
+                                                key={name}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={name === groupName}
+                                                onMouseDown={(event) => event.preventDefault()}
+                                                onClick={() => {
+                                                    setGroupName(name);
+                                                    setShowGroupNameCandidates(false);
+                                                }}
+                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                                            >
+                                                <span className="block truncate">{name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </Field>
                         <Field>
                             <FieldLabel htmlFor="group-mode">
