@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { AlertCircle, ArrowDownToLine, ArrowRight, ArrowUpFromLine, Clock, Cpu, Database, DollarSign, Loader2, Square, Tag } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, ArrowRight, ArrowUpFromLine, CheckCircle2, CircleX, Clock, Cpu, Database, DollarSign, Loader2, Square, Tag } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 import JsonView from '@uiw/react-json-view';
 import { githubDarkTheme } from '@uiw/react-json-view/githubDark';
@@ -76,14 +76,6 @@ function LogMetrics({ log, now, brandColor, variant }: { log: RelayLogOverview; 
     ));
 }
 
-// ObservedRound 保存弹窗打开期间观察到的一轮上游请求状态。
-interface ObservedRound {
-    round: number; // 当前请求内递增的轮次序号。
-    channel: string; // 本轮实际请求的渠道名称。
-    error: string; // 本轮最近一次上游错误。
-    sending: boolean; // 本轮是否仍在等待上游响应。
-}
-
 // JsonContent 渲染请求或响应正文, 能解析为 JSON 时使用折叠视图, 否则按纯文本展示。
 function JsonContent({ content, fallbackText }: { content: string | object | undefined; fallbackText: string }) {
     const { resolvedTheme } = useTheme();
@@ -137,7 +129,6 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
     const t = useTranslations('log.card');
     const statusT = useTranslations('log.status');
     const [leftTab, setLeftTab] = useState<'request' | 'group'>('group');
-    const [rounds, setRounds] = useState<ObservedRound[]>([]);
     const [detailReady, setDetailReady] = useState(false); // 展开动画结束后才允许加载详情数据。
     const [switchingItemId, setSwitchingItemId] = useState<number | null>(null);
     const requestBody = useLogRequestBody(log.id, log.started_at, detailReady && leftTab === 'request');
@@ -156,9 +147,10 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
     const actualModel = log.target_model || log.model;
     const { Icon, className: iconClassName, color: brandColor } = getModelIcon(actualModel);
     const errorText = log.error ?? '';
+    const rounds = log.rounds ?? [];
     const requestFailed = log.status === 'failed' || log.status === 'canceled';
     const responseCommitted = log.status === 'committed';
-    const showRounds = log.status === 'running' || (requestFailed && rounds.length > 0);
+    const showRounds = log.status === 'running' || rounds.length > 1 || (requestFailed && rounds.length > 0);
     const activeGroup = groups.find((group) => group.name === log.model);
     const isWaitingForSelection = log.status === 'running' && !log.sending && activeGroup?.mode === 'manual' && activeGroup.active_item_id === 0; // isWaitingForSelection 表示手动模式请求正等待选择渠道。
 
@@ -167,18 +159,6 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
         const timer = window.setTimeout(() => setDetailReady(true), 600);
         return () => window.clearTimeout(timer);
     }, []);
-
-    // 按轮次记录本次打开期间观察到的上游请求状态, 最新一轮排在最前。
-    useEffect(() => {
-        if (log.round === 0) return;
-        setRounds((current) => {
-            if (!log.sending && current.every((item) => item.round !== log.round)) return current;
-            return [
-                { round: log.round, channel: log.target_channel, error: errorText, sending: log.sending },
-                ...current.filter((item) => item.round !== log.round),
-            ];
-        });
-    }, [errorText, log.round, log.sending, log.target_channel]);
 
     return (
         <MorphingDialogContent className="relative w-[calc(100vw-2rem)] md:w-[80vw] bg-card text-card-foreground px-6 py-4 rounded-3xl h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
@@ -350,14 +330,19 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
                                                     <span className="font-semibold text-foreground">{round.channel || '-'}</span>
                                                     {round.sending ? (
                                                         <Loader2 className="ml-auto size-3.5 animate-spin text-muted-foreground" />
-                                                    ) : round.error ? (
+                                                    ) : round.status === 'success' ? (
+                                                        <CheckCircle2 className="ml-auto size-3.5 text-emerald-500" />
+                                                    ) : round.status === 'failed' || round.status === 'canceled' ? (
+                                                        <CircleX className="ml-auto size-3.5 text-destructive" />
+                                                    ) : null}
+                                                    {round.error && (
                                                         <CopyIconButton
                                                             text={round.error}
-                                                            className="ml-auto p-1 rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                                            className="p-1 rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                                                             copyIconClassName="size-3.5"
                                                             checkIconClassName="size-3.5"
                                                         />
-                                                    ) : null}
+                                                    )}
                                                 </div>
                                                 {round.error && (
                                                     <div className="text-[11px] leading-relaxed text-destructive/90 whitespace-pre-wrap wrap-break-word">

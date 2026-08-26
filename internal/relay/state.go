@@ -23,6 +23,16 @@ const (
 	StatusCanceled  Status = "canceled"  // 客户端提前断开或取消。
 )
 
+// RoundState 保存一次上游尝试的完整状态。列表按最新轮次在前排列。
+type RoundState struct {
+	Round   int    `json:"round"`
+	Channel string `json:"channel"`
+	Model   string `json:"model"`
+	Status  Status `json:"status"`
+	Sending bool   `json:"sending"`
+	Error   string `json:"error,omitempty"`
+}
+
 // 客户端请求的完整进程内状态, 同时作为状态流的消息形状; 上半部分在请求到达时写入并在结束时定稿, 下半部分每轮循环覆盖。
 type RequestState struct {
 	ID           uint64        `json:"id"`                      // 请求在当前进程内的唯一标识。
@@ -36,6 +46,7 @@ type RequestState struct {
 	PricingLabel string        `json:"pricing_label,omitempty"` // 实际采用的对话或分辨率标签。
 	PricingValue float64       `json:"pricing_value,omitempty"` // 实际采用的倍率或单次费用。
 	PricingCount int64         `json:"pricing_count,omitempty"` // 生图累计计费次数。
+	Rounds       []RoundState  `json:"rounds,omitempty"`        // 全部上游尝试记录, 最新轮次在前。
 
 	Round         int    `json:"round"`           // 最新一轮循环的递增序号, 人工中止按此匹配以免误杀下一轮。
 	TargetChannel string `json:"target_channel"`  // 最新一轮选中的渠道名称。
@@ -136,6 +147,13 @@ func (r *RequestState) startRound(cancel context.CancelFunc, channel, model stri
 	r.Sending = true
 	r.Error = ""
 	r.cancel = cancel
+	r.Rounds = append([]RoundState{{
+		Round:   r.Round,
+		Channel: channel,
+		Model:   model,
+		Status:  StatusRunning,
+		Sending: true,
+	}}, r.Rounds...)
 	publishRequestLocked(r)
 	return r.Round
 }
@@ -148,7 +166,25 @@ func (r *RequestState) finishRound(errText string) {
 	r.Sending = false
 	r.Error = errText
 	r.cancel = nil
+	status := StatusCommitted
+	if errText != "" {
+		status = StatusFailed
+	}
+	r.updateRoundLocked(status, false, errText)
 	publishRequestLocked(r)
+}
+
+// updateRoundLocked 更新当前轮次记录; 调用方必须持有锁。
+func (r *RequestState) updateRoundLocked(status Status, sending bool, errText string) {
+	for i := range r.Rounds {
+		if r.Rounds[i].Round != r.Round {
+			continue
+		}
+		r.Rounds[i].Status = status
+		r.Rounds[i].Sending = sending
+		r.Rounds[i].Error = errText
+		return
+	}
 }
 
 // Interrupt 中止指定请求仍在等待响应且轮次匹配的上游请求; 轮次不匹配说明该轮已结束, 不影响后续轮次。
@@ -183,6 +219,7 @@ func (r *RequestState) markCommitted() {
 	defer mu.Unlock()
 
 	r.Status = StatusCommitted
+	r.updateRoundLocked(StatusCommitted, false, "")
 	publishRequestLocked(r)
 }
 
@@ -193,6 +230,7 @@ func (r *RequestState) markSucceeded(responseBody string, usage *llm.Usage) {
 
 	r.Status = StatusSuccess
 	r.Error = ""
+	r.updateRoundLocked(StatusSuccess, false, "")
 	r.responseBody = responseBody
 	r.finishLocked(usage)
 }
@@ -204,6 +242,7 @@ func (r *RequestState) markFailed(err error, responseBody string, usage *llm.Usa
 
 	r.Status = StatusFailed
 	r.Error = err.Error()
+	r.updateRoundLocked(StatusFailed, false, r.Error)
 	if responseBody != "" {
 		r.responseBody = responseBody
 	}
@@ -217,6 +256,7 @@ func (r *RequestState) markCanceled(err error, responseBody string, usage *llm.U
 
 	r.Status = StatusCanceled
 	r.Error = err.Error()
+	r.updateRoundLocked(StatusCanceled, false, r.Error)
 	if responseBody != "" {
 		r.responseBody = responseBody
 	}
@@ -293,9 +333,11 @@ func usageMetrics(modelName string, usage *llm.Usage) model.StatsMetrics {
 
 // publishRequestLocked 非阻塞发布最新请求状态, 连接拥塞时关闭它并交给客户端重连获取全量快照; 调用方必须持有锁。
 func publishRequestLocked(request *RequestState) {
+	message := *request
+	message.Rounds = append([]RoundState(nil), request.Rounds...)
 	for stream := range watchers {
 		select {
-		case stream <- *request:
+		case stream <- message:
 		default:
 			delete(watchers, stream)
 			close(stream)
@@ -313,7 +355,9 @@ func OpenRequestStream() ([]RequestState, chan RequestState) {
 
 	snapshot := make([]RequestState, 0, len(requests))
 	for _, request := range requests {
-		snapshot = append(snapshot, *request)
+		message := *request
+		message.Rounds = append([]RoundState(nil), request.Rounds...)
+		snapshot = append(snapshot, message)
 	}
 	sort.Slice(snapshot, func(i, j int) bool { return snapshot[i].ID > snapshot[j].ID })
 	return snapshot, stream

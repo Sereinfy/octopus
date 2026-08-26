@@ -5,6 +5,15 @@ import { apiRequest } from './client';
 // RequestState 表示 Relay 请求的实时状态。
 export type RequestState = 'running' | 'committed' | 'success' | 'failed' | 'canceled';
 
+export interface RelayRound {
+    round: number;
+    channel: string;
+    model: string;
+    status: RequestState;
+    sending: boolean;
+    error?: string;
+}
+
 // RelayUsage 保存请求结束后确认的统一 Token 用量。
 export interface RelayUsage {
     prompt_tokens: number;
@@ -29,6 +38,7 @@ export interface RelayLogOverview {
     pricing_label?: string;
     pricing_value?: number;
     pricing_count?: number;
+    rounds?: RelayRound[];
     round: number;
     target_channel: string;
     target_model: string;
