@@ -50,6 +50,10 @@ func TestImageRequestCountDefaultsToOne(t *testing.T) {
 	if got := imageRequestCount(&llm.ImageRequest{N: &n}); got != 3 {
 		t.Fatalf("image count = %d, want 3", got)
 	}
+	tooMany := int64(maxImageRequestCount + 1)
+	if got := imageRequestCount(&llm.ImageRequest{N: &tooMany}); got != maxImageRequestCount {
+		t.Fatalf("protected image count = %d, want %d", got, maxImageRequestCount)
+	}
 }
 
 func TestPricedMetricsUsesImageChargeForRoundStats(t *testing.T) {
@@ -64,7 +68,6 @@ func TestPricedMetricsUsesImageChargeForRoundStats(t *testing.T) {
 		t.Fatalf("image round metrics = (%v, %v), want (0, 1.2)", metrics.InputCost, metrics.OutputCost)
 	}
 }
-
 
 func TestChargeImageMarksMixedRetryPricing(t *testing.T) {
 	image := &llm.ImageRequest{Size: "1024x1024"}

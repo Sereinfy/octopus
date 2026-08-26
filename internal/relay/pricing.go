@@ -94,6 +94,9 @@ func imageRequestCount(image *llm.ImageRequest) int64 {
 	if image == nil || image.N == nil || *image.N <= 0 {
 		return 1
 	}
+	if *image.N > maxImageRequestCount {
+		return maxImageRequestCount
+	}
 	return *image.N
 }
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -71,6 +72,9 @@ func responseBodyForLogStatus(format llm.APIFormat, body []byte, success bool) s
 		marker = "success"
 	}
 	for i := range payload.Data {
+		if payload.Data[i].URL != "" {
+			payload.Data[i].URL = redactImageURL(payload.Data[i].URL)
+		}
 		if payload.Data[i].B64JSON != "" {
 			payload.Data[i].B64JSON = marker
 		}
@@ -80,6 +84,17 @@ func responseBodyForLogStatus(format llm.APIFormat, body []byte, success bool) s
 		return fmt.Sprintf(`{"content_type":"application/json","body_bytes":%d}`, len(body))
 	}
 	return string(redacted)
+}
+
+func redactImageURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "data" {
+		return "[redacted]"
+	}
+	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 // multipartImageRequestForLog extracts only safe multipart metadata. Binary parts

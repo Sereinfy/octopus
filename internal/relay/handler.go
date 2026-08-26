@@ -31,12 +31,24 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			rejectRequest(c, inbound, err)
 			return
 		}
+		if isImageFormat(format) {
+			if err := validateRawImageRequest(format, raw); err != nil {
+				rejectRequest(c, inbound, err)
+				return
+			}
+		}
 
 		// 统一解析同时支持 JSON 和 multipart 图片请求, 仅用于路由元数据。
 		parsed, err := inbound.TransformRequest(c.Request.Context(), raw)
 		if err != nil {
 			rejectRequest(c, inbound, err)
 			return
+		}
+		if isImageFormat(format) {
+			if err := validateImageRequest(parsed.Image); err != nil {
+				rejectRequest(c, inbound, err)
+				return
+			}
 		}
 		metadataModel := parsed.Model
 		metadataStreaming := parsed.Stream != nil && *parsed.Stream
@@ -127,15 +139,16 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				cancelRoundCause(context.Canceled)
 			}
 			request.startRound(cancelRound, channel.Name, channelModel.Name)
-			if isImageFormat(format) {
-				request.chargeImage(channel, parsed.Image)
-			} else {
+			if !isImageFormat(format) {
 				request.setChatPricing(channel.Multiplier)
 			}
 
 			// 按渠道协议构造出站转换器并确定是否可以直接透传。
 			roundStartedAt := time.Now() // 本轮上游调用的开始时间, 用于统计首个有效响应耗时。
 			outbound, passthrough, err := buildOutbound(channel, format)
+			if err == nil && isImageFormat(format) {
+				request.chargeImage(channel, parsed.Image)
+			}
 
 			// 请求上游并等待首个有效响应: 非流式等待完整响应, 流式等待首个事件。
 			// 同协议渠道原样直通, 跨协议渠道经转换后请求; 此时尚未写给客户端, 失败仍可换目标重试。
@@ -155,7 +168,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				if passthrough {
 					result, err = sendPassthrough(roundCtx, format, raw, channel, outbound, metadataStreaming)
 				} else {
-					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadataStreaming, channelModel.Name)
+					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadataStreaming, channelModel.Name, parsed)
 				}
 				// 上游调用返回即结束首响应等待; Stop 失败说明已到期, 主动取消可避免等待异步回调完成。
 				if !timeoutTimer.Stop() {
@@ -323,9 +336,16 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 
 // rejectRequest 以客户端协议的错误格式返回请求级失败, 用于尚未登记状态因而无需定稿的请求。
 func rejectRequest(c *gin.Context, inbound transformer.Inbound, err error) {
+	statusCode := http.StatusBadRequest
+	message := err.Error()
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		statusCode = http.StatusRequestEntityTooLarge
+		message = "image request body is too large"
+	}
 	response := inbound.TransformError(c.Request.Context(), &llm.ResponseError{
-		StatusCode: http.StatusBadRequest,
-		Detail:     llm.ErrorDetail{Message: err.Error(), Type: "invalid_request_error"},
+		StatusCode: statusCode,
+		Detail:     llm.ErrorDetail{Message: message, Type: "invalid_request_error"},
 	})
 	c.Data(response.StatusCode, "application/json", response.Body)
 	c.Abort()

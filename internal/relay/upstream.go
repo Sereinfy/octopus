@@ -119,6 +119,22 @@ type conversionMiddleware struct {
 	usage                    *llm.Usage    // 非流式统一响应中确认的用量。
 }
 
+// cachedInbound reuses the request parsed by Forward for the pipeline. Image
+// parsing decodes and copies binary data, so parsing the same body again per
+// retry needlessly multiplies memory and CPU costs.
+type cachedInbound struct {
+	transformer.Inbound
+	parsed *llm.Request
+	raw    *httpclient.Request
+}
+
+func (c *cachedInbound) TransformRequest(ctx context.Context, raw *httpclient.Request) (*llm.Request, error) {
+	if raw == c.raw {
+		return c.parsed, nil
+	}
+	return c.Inbound.TransformRequest(ctx, raw)
+}
+
 func (m *conversionMiddleware) OnInboundLlmRequest(_ context.Context, request *llm.Request) (*llm.Request, error) {
 	if request != nil && m.model != "" {
 		request.Model = m.model
@@ -175,8 +191,8 @@ func inboundForFormat(format llm.APIFormat) transformer.Inbound {
 	}
 }
 
-func sendConverted(ctx context.Context, format llm.APIFormat, raw *httpclient.Request, channel model.Channel, outbound transformer.Outbound, streaming bool, modelName string) (*upstreamResponse, error) {
-	inbound := inboundForFormat(format)
+func sendConverted(ctx context.Context, format llm.APIFormat, raw *httpclient.Request, channel model.Channel, outbound transformer.Outbound, streaming bool, modelName string, parsed *llm.Request) (*upstreamResponse, error) {
+	inbound := &cachedInbound{Inbound: inboundForFormat(format), parsed: parsed, raw: raw}
 
 	client, err := helper.ChannelHttpClient(&channel)
 	if err != nil {
