@@ -290,21 +290,21 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
                             inputMode="decimal"
                             value={formData.multiplier}
                             onChange={(event) => setFormData({ ...formData, multiplier: event.target.value })}
-                            placeholder="0"
+                            placeholder={t('conversationMultiplier')}
                             className="rounded-xl"
                         />
                     </div>
                     <div className="space-y-1.5">
                         <label htmlFor={`${idPrefix}-image-1k`} className="text-xs text-muted-foreground">{t('image1K')}</label>
-                        <Input id={`${idPrefix}-image-1k`} type="text" inputMode="decimal" value={formData.image_1k} onChange={(event) => setFormData({ ...formData, image_1k: event.target.value })} placeholder="0" className="rounded-xl" />
+                        <Input id={`${idPrefix}-image-1k`} type="text" inputMode="decimal" value={formData.image_1k} onChange={(event) => setFormData({ ...formData, image_1k: event.target.value })} placeholder={t('image1K')} className="rounded-xl" />
                     </div>
                     <div className="space-y-1.5">
                         <label htmlFor={`${idPrefix}-image-2k`} className="text-xs text-muted-foreground">{t('image2K')}</label>
-                        <Input id={`${idPrefix}-image-2k`} type="text" inputMode="decimal" value={formData.image_2k} onChange={(event) => setFormData({ ...formData, image_2k: event.target.value })} placeholder="0" className="rounded-xl" />
+                        <Input id={`${idPrefix}-image-2k`} type="text" inputMode="decimal" value={formData.image_2k} onChange={(event) => setFormData({ ...formData, image_2k: event.target.value })} placeholder={t('image2K')} className="rounded-xl" />
                     </div>
                     <div className="space-y-1.5">
                         <label htmlFor={`${idPrefix}-image-4k`} className="text-xs text-muted-foreground">{t('image4K')}</label>
-                        <Input id={`${idPrefix}-image-4k`} type="text" inputMode="decimal" value={formData.image_4k} onChange={(event) => setFormData({ ...formData, image_4k: event.target.value })} placeholder="0" className="rounded-xl" />
+                        <Input id={`${idPrefix}-image-4k`} type="text" inputMode="decimal" value={formData.image_4k} onChange={(event) => setFormData({ ...formData, image_4k: event.target.value })} placeholder={t('image4K')} className="rounded-xl" />
                     </div>
                 </div>
             </div>
