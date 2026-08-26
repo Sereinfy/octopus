@@ -2,7 +2,7 @@ package main
 
 import "github.com/bestruirui/octopus/cmd"
 
-// Version v0.12.3
+// Version v0.12.4
 
 func main() {
 	cmd.Execute()
