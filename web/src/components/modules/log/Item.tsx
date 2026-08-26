@@ -53,25 +53,25 @@ function LogMetrics({ log, now, brandColor, variant }: { log: RelayLogOverview; 
         ? formatMilliseconds(now - new Date(log.started_at).getTime())
         : formatMilliseconds(log.duration / 1_000_000);
     const pricing = log.pricing_mode === 'image'
-        ? `${log.pricing_label || '-'} × ${(log.pricing_value ?? 0).toFixed(6)} × ${log.pricing_count ?? 1}`
+        ? `${log.pricing_label || '-'} × ${(log.pricing_value ?? 0).toFixed(2)} × ${log.pricing_count ?? 1}`
         : log.pricing_mode === 'multiplier'
-            ? `${log.pricing_label || 'chat'} × ${(log.pricing_value ?? 1).toFixed(6)}`
+            ? `${log.pricing_label || 'chat'} × ${(log.pricing_value ?? 1).toFixed(2)}`
             : 'original';
     const metrics = [
-        { key: 'time', Icon: Clock, iconClassName: 'size-3.5 shrink-0', iconStyle: { color: brandColor } as CSSProperties, value: formatTime(log.started_at), valueClassName: 'tabular-nums', cellClassName: 'col-span-4 whitespace-nowrap md:col-span-1' },
-        { key: 'duration', Icon: Cpu, iconClassName: 'size-3.5 shrink-0 text-blue-500', value: duration, cellClassName: 'col-span-4 md:col-span-1' },
-        { key: 'cost', Icon: DollarSign, iconClassName: 'size-3.5 shrink-0 text-emerald-500', value: log.cost.toFixed(6), valueClassName: 'font-medium text-emerald-600 dark:text-emerald-400', cellClassName: 'col-span-4 md:col-span-1' },
-        { key: 'pricing', Icon: Tag, iconClassName: 'size-3.5 shrink-0 text-amber-500', value: pricing, cellClassName: 'col-span-4 md:col-span-1' },
-        { key: 'prompt', Icon: ArrowDownToLine, iconClassName: 'size-3.5 shrink-0 text-green-500', value: (log.usage.prompt_tokens - cachedTokens).toLocaleString(), cellClassName: 'col-span-3 md:col-span-1' },
-        { key: 'cached', Icon: Database, iconClassName: 'size-3.5 shrink-0 text-cyan-500', value: cachedTokens.toLocaleString(), cellClassName: 'col-span-3 md:col-span-1' },
-        { key: 'completion', Icon: ArrowUpFromLine, iconClassName: 'size-3.5 shrink-0 text-purple-500', value: log.usage.completion_tokens.toLocaleString(), cellClassName: 'col-span-3 md:col-span-1' },
-        { key: 'cacheWrite', Icon: Database, iconClassName: 'size-3.5 shrink-0 text-orange-500', value: (log.usage.prompt_tokens_details?.write_cached_tokens ?? 0).toLocaleString(), cellClassName: 'col-span-3 md:col-span-1' },
+        { key: 'time', Icon: Clock, iconClassName: 'size-3.5 shrink-0', iconStyle: { color: brandColor } as CSSProperties, value: formatTime(log.started_at), valueClassName: 'tabular-nums' },
+        { key: 'duration', Icon: Cpu, iconClassName: 'size-3.5 shrink-0 text-blue-500', value: duration },
+        { key: 'cost', Icon: DollarSign, iconClassName: 'size-3.5 shrink-0 text-emerald-500', value: log.cost.toFixed(6), valueClassName: 'font-medium text-emerald-600 dark:text-emerald-400' },
+        { key: 'pricing', Icon: Tag, iconClassName: 'size-3.5 shrink-0 text-amber-500', value: pricing },
+        { key: 'prompt', Icon: ArrowDownToLine, iconClassName: 'size-3.5 shrink-0 text-green-500', value: (log.usage.prompt_tokens - cachedTokens).toLocaleString() },
+        { key: 'cached', Icon: Database, iconClassName: 'size-3.5 shrink-0 text-cyan-500', value: cachedTokens.toLocaleString() },
+        { key: 'completion', Icon: ArrowUpFromLine, iconClassName: 'size-3.5 shrink-0 text-purple-500', value: log.usage.completion_tokens.toLocaleString() },
+        { key: 'cacheWrite', Icon: Database, iconClassName: 'size-3.5 shrink-0 text-orange-500', value: (log.usage.prompt_tokens_details?.write_cached_tokens ?? 0).toLocaleString() },
     ];
 
     return metrics.map((metric) => (
-        <div key={metric.key} className={cn('flex items-center gap-1.5', variant === 'card' && metric.cellClassName)}>
+        <div key={metric.key} className={cn('flex min-w-0 items-center gap-1.5 whitespace-nowrap', variant === 'footer' && 'shrink-0')}>
             <metric.Icon className={metric.iconClassName} style={metric.iconStyle} />
-            <span className={metric.valueClassName}>{metric.value}</span>
+            <span className={cn(variant === 'card' && 'min-w-0 truncate', metric.valueClassName)}>{metric.value}</span>
         </div>
     ));
 }
@@ -451,7 +451,7 @@ function LogCardBody({ log }: { log: RelayLogOverview }) {
                                 {actualModel}
                             </span>
                         </div>
-                        <div className="grid grid-cols-12 gap-x-4 gap-y-2 text-xs tabular-nums text-muted-foreground md:grid-cols-7">
+                        <div className="grid min-w-0 grid-cols-8 gap-x-4 text-xs tabular-nums text-muted-foreground">
                             <LogMetrics log={log} now={now} brandColor={brandColor} variant="card" />
                         </div>
                         {requestFailed && errorText && (
