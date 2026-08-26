@@ -25,6 +25,10 @@ export interface RelayLogOverview {
     model: string;
     usage: RelayUsage;
     cost: number;
+    pricing_mode?: 'original' | 'multiplier' | 'image';
+    pricing_label?: string;
+    pricing_value?: number;
+    pricing_count?: number;
     round: number;
     target_channel: string;
     target_model: string;

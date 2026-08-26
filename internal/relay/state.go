@@ -25,13 +25,17 @@ const (
 
 // 客户端请求的完整进程内状态, 同时作为状态流的消息形状; 上半部分在请求到达时写入并在结束时定稿, 下半部分每轮循环覆盖。
 type RequestState struct {
-	ID        uint64        `json:"id"`         // 请求在当前进程内的唯一标识。
-	Status    Status        `json:"status"`     // 请求当前状态。
-	StartedAt time.Time     `json:"started_at"` // 请求到达时间。
-	Duration  time.Duration `json:"duration"`   // 请求总耗时, 未结束时为零。
-	Model     string        `json:"model"`      // 客户端请求的模型名称, 即分组名称。
-	Usage     llm.Usage     `json:"usage"`      // 请求结束时写入的展示用量。
-	Cost      float64       `json:"cost"`       // 请求结束时写入的累计费用。
+	ID           uint64        `json:"id"`                      // 请求在当前进程内的唯一标识。
+	Status       Status        `json:"status"`                  // 请求当前状态。
+	StartedAt    time.Time     `json:"started_at"`              // 请求到达时间。
+	Duration     time.Duration `json:"duration"`                // 请求总耗时, 未结束时为零。
+	Model        string        `json:"model"`                   // 客户端请求的模型名称, 即分组名称。
+	Usage        llm.Usage     `json:"usage"`                   // 请求结束时写入的展示用量。
+	Cost         float64       `json:"cost"`                    // 请求结束时写入的累计费用。
+	PricingMode  string        `json:"pricing_mode,omitempty"`  // 实际采用的计费模式。
+	PricingLabel string        `json:"pricing_label,omitempty"` // 实际采用的对话或分辨率标签。
+	PricingValue float64       `json:"pricing_value,omitempty"` // 实际采用的倍率或单次费用。
+	PricingCount int64         `json:"pricing_count,omitempty"` // 生图累计计费次数。
 
 	Round         int    `json:"round"`           // 最新一轮循环的递增序号, 人工中止按此匹配以免误杀下一轮。
 	TargetChannel string `json:"target_channel"`  // 最新一轮选中的渠道名称。
@@ -39,18 +43,20 @@ type RequestState struct {
 	Sending       bool   `json:"sending"`         // 最新一轮是否仍在等待上游响应。
 	Error         string `json:"error,omitempty"` // 最新一轮的失败原因, 请求结束后即为最终错误。
 
-	body         string             // 客户端原始请求体, 体积大故不进状态流, 由独立接口按需拉取。
-	responseBody string             // 聚合后的完整最终响应体, 同样按需拉取。
-	apiKeyID     int                // 发起请求的 API Key ID, 用于请求完成后的归属统计。
-	cancel       context.CancelFunc // 中止最新一轮上游请求, 仅在该轮等待响应期间非空。
+	body              string             // 客户端原始请求体, 体积大故不进状态流, 由独立接口按需拉取。
+	responseBody      string             // 聚合后的完整最终响应体, 同样按需拉取。
+	apiKeyID          int                // 发起请求的 API Key ID, 用于请求完成后的归属统计。
+	cancel            context.CancelFunc // 中止最新一轮上游请求, 仅在该轮等待响应期间非空。
+	appliedMultiplier float64            // 本次请求实际采用的对话倍率。
+	imageCost         float64            // 已按生图请求次数累计的固定费用。
 }
 
 const streamBuffer = 16 // 单个状态流连接的非阻塞消息缓冲容量。
 const maxFinished = 50  // 进程内最多保留的已结束请求数量。
 
 var (
-	idSeq    atomic.Uint64                     // 进程内严格递增的请求 ID。
-	mu       sync.Mutex                        // 全部共享状态的互斥锁。
+	idSeq    atomic.Uint64                          // 进程内严格递增的请求 ID。
+	mu       sync.Mutex                             // 全部共享状态的互斥锁。
 	requests = make(map[uint64]*RequestState)       // 按请求 ID 保存的全部请求状态。
 	watchers = make(map[chan RequestState]struct{}) // 全部状态流 SSE 连接。
 )
@@ -61,16 +67,56 @@ func newRequestState(model, body string, apiKeyID int) *RequestState {
 	defer mu.Unlock()
 
 	request := &RequestState{
-		ID:        idSeq.Add(1),
-		Status:    StatusRunning,
-		StartedAt: time.Now(),
-		Model:     model,
-		body:      body,
-		apiKeyID:  apiKeyID,
+		ID:                idSeq.Add(1),
+		Status:            StatusRunning,
+		StartedAt:         time.Now(),
+		Model:             model,
+		body:              body,
+		apiKeyID:          apiKeyID,
+		appliedMultiplier: 1,
 	}
 	requests[request.ID] = request
 	publishRequestLocked(request)
 	return request
+}
+
+// setChatPricing records the multiplier for the currently selected channel key.
+func (r *RequestState) setChatPricing(multiplier float64) {
+	mu.Lock()
+	defer mu.Unlock()
+	r.appliedMultiplier = 1
+	r.PricingCount = 0
+	if multiplier > 0 {
+		r.appliedMultiplier = multiplier
+		r.PricingMode = "multiplier"
+		r.PricingLabel = "chat"
+		r.PricingValue = multiplier
+	} else {
+		r.PricingMode = "original"
+		r.PricingLabel = ""
+		r.PricingValue = 0
+	}
+	publishRequestLocked(r)
+}
+
+// chargeImage records a fixed image charge at request dispatch time. This is
+// intentionally independent of the upstream result and therefore also covers retries.
+func (r *RequestState) chargeImage(channel model.Channel, image *llm.ImageRequest) {
+	label, rate, ok := imagePricingForRequest(channel, image)
+	if !ok {
+		return
+	}
+	count := imageRequestCount(image)
+
+	mu.Lock()
+	defer mu.Unlock()
+	r.imageCost += rate * float64(count)
+	r.Cost = r.imageCost
+	r.PricingMode = "image"
+	r.PricingLabel = label
+	r.PricingValue = rate
+	r.PricingCount += count
+	publishRequestLocked(r)
 }
 
 // startRound 记录本轮选中的目标并进入上游请求, cancel 供人工中止本轮, 返回递增的轮次序号。
@@ -179,6 +225,13 @@ func (r *RequestState) finishLocked(usage *llm.Usage) {
 		r.Usage = *usage
 	}
 	metrics := usageMetrics(r.TargetModel, usage)
+	if r.imageCost > 0 {
+		metrics.InputCost = 0
+		metrics.OutputCost = r.imageCost
+	} else if r.appliedMultiplier > 0 {
+		metrics.InputCost *= r.appliedMultiplier
+		metrics.OutputCost *= r.appliedMultiplier
+	}
 	r.Cost = metrics.InputCost + metrics.OutputCost
 	r.Duration = time.Since(r.StartedAt)
 	metrics.WaitTime = r.Duration.Milliseconds()

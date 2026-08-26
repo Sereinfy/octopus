@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { useTranslations } from 'use-intl';
 import { useState } from 'react';
 import { RefreshCw, X, Plus } from 'lucide-react';
+import { parsePositiveNumber } from './rate';
 
 interface ChannelFormData {
     name: string;
@@ -43,6 +44,10 @@ interface ChannelFormData {
     proxy: boolean;
     auto_sync: boolean;
     match_regex: string;
+    multiplier: string;
+    image_1k: string;
+    image_2k: string;
+    image_4k: string;
 }
 
 // 新建渠道的初始表单值, 自定义 Header 至少保留一行
@@ -59,6 +64,10 @@ const emptyFormData: ChannelFormData = {
     enabled: true,
     proxy: false,
     match_regex: '',
+    multiplier: '',
+    image_1k: '',
+    image_2k: '',
+    image_4k: '',
 };
 
 // 忽略顺序生成模型集合的比较键
@@ -83,6 +92,10 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
         proxy: channel.proxy,
         auto_sync: channel.auto_sync,
         match_regex: channel.match_regex ?? '',
+        multiplier: channel.multiplier > 0 ? String(channel.multiplier) : '',
+        image_1k: channel.image_1k > 0 ? String(channel.image_1k) : '',
+        image_2k: channel.image_2k > 0 ? String(channel.image_2k) : '',
+        image_4k: channel.image_4k > 0 ? String(channel.image_4k) : '',
     } : emptyFormData);
     // 新建和编辑共存时隔离表单控件的 id
     const idPrefix = channel ? `channel-${channel.id}` : 'new-channel';
@@ -178,6 +191,10 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
                 channel_proxy: formData.channel_proxy.trim(),
                 param_override: formData.param_override.trim(),
                 match_regex: formData.match_regex.trim(),
+                multiplier: parsePositiveNumber(formData.multiplier),
+                image_1k: parsePositiveNumber(formData.image_1k),
+                image_2k: parsePositiveNumber(formData.image_2k),
+                image_4k: parsePositiveNumber(formData.image_4k),
             }, { onSuccess: () => setIsOpen(false) });
             return;
         }
@@ -196,6 +213,14 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
             const next = formData[key].trim();
             if (next !== (channel[key] ?? '')) req[key] = next;
         }
+        const nextMultiplier = parsePositiveNumber(formData.multiplier);
+        const nextImage1K = parsePositiveNumber(formData.image_1k);
+        const nextImage2K = parsePositiveNumber(formData.image_2k);
+        const nextImage4K = parsePositiveNumber(formData.image_4k);
+        if (nextMultiplier !== channel.multiplier) req.multiplier = nextMultiplier;
+        if (nextImage1K !== channel.image_1k) req.image_1k = nextImage1K;
+        if (nextImage2K !== channel.image_2k) req.image_2k = nextImage2K;
+        if (nextImage4K !== channel.image_4k) req.image_4k = nextImage4K;
 
         updateChannel.mutate(req, { onSuccess: () => setIsOpen(false) });
     };
@@ -252,6 +277,36 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
                     required
                     className="rounded-xl"
                 />
+            </div>
+
+            <div className="space-y-3">
+                <label className="text-sm font-medium text-card-foreground">{t('multiplier')}</label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                    <div className="space-y-1.5 sm:col-span-1">
+                        <label htmlFor={`${idPrefix}-multiplier`} className="text-xs text-muted-foreground">{t('conversationMultiplier')}</label>
+                        <Input
+                            id={`${idPrefix}-multiplier`}
+                            type="text"
+                            inputMode="decimal"
+                            value={formData.multiplier}
+                            onChange={(event) => setFormData({ ...formData, multiplier: event.target.value })}
+                            placeholder="0"
+                            className="rounded-xl"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label htmlFor={`${idPrefix}-image-1k`} className="text-xs text-muted-foreground">{t('image1K')}</label>
+                        <Input id={`${idPrefix}-image-1k`} type="text" inputMode="decimal" value={formData.image_1k} onChange={(event) => setFormData({ ...formData, image_1k: event.target.value })} placeholder="0" className="rounded-xl" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label htmlFor={`${idPrefix}-image-2k`} className="text-xs text-muted-foreground">{t('image2K')}</label>
+                        <Input id={`${idPrefix}-image-2k`} type="text" inputMode="decimal" value={formData.image_2k} onChange={(event) => setFormData({ ...formData, image_2k: event.target.value })} placeholder="0" className="rounded-xl" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label htmlFor={`${idPrefix}-image-4k`} className="text-xs text-muted-foreground">{t('image4K')}</label>
+                        <Input id={`${idPrefix}-image-4k`} type="text" inputMode="decimal" value={formData.image_4k} onChange={(event) => setFormData({ ...formData, image_4k: event.target.value })} placeholder="0" className="rounded-xl" />
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-2">

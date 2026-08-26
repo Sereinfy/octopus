@@ -34,6 +34,10 @@ type Channel struct {
 	ParamOverride *string         `json:"param_override"`                                                             // 请求参数覆盖配置。
 	ChannelProxy  *string         `json:"channel_proxy"`                                                              // 渠道专用代理地址。
 	MatchRegex    *string         `json:"match_regex"`                                                                // 模型同步过滤表达式。
+	Multiplier    float64         `json:"multiplier"`                                                               // 对话模型费用倍率。
+	Image1K       float64         `json:"image_1k"`                                                                 // 1K 生图单次费用。
+	Image2K       float64         `json:"image_2k"`                                                                 // 2K 生图单次费用。
+	Image4K       float64         `json:"image_4k"`                                                                 // 4K 生图单次费用。
 	StatsMetrics                                                                                                        // 渠道累计统计信息。
 }
 
@@ -67,4 +71,8 @@ type ChannelUpdateRequest struct {
 	ChannelProxy  *string          `json:"channel_proxy,omitempty"`  // 新的渠道代理地址。
 	ParamOverride *string          `json:"param_override,omitempty"` // 新的参数覆盖配置。
 	MatchRegex    *string          `json:"match_regex,omitempty"`    // 新的模型过滤表达式。
+	Multiplier    *float64         `json:"multiplier,omitempty"`     // 对话模型费用倍率。
+	Image1K       *float64         `json:"image_1k,omitempty"`       // 1K 生图单次费用。
+	Image2K       *float64         `json:"image_2k,omitempty"`       // 2K 生图单次费用。
+	Image4K       *float64         `json:"image_4k,omitempty"`       // 4K 生图单次费用。
 }

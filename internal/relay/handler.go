@@ -127,6 +127,11 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				cancelRoundCause(context.Canceled)
 			}
 			request.startRound(cancelRound, channel.Name, channelModel.Name)
+			if isImageFormat(format) {
+				request.chargeImage(channel, parsed.Image)
+			} else {
+				request.setChatPricing(channel.Multiplier)
+			}
 
 			// 按渠道协议构造出站转换器并确定是否可以直接透传。
 			roundStartedAt := time.Now() // 本轮上游调用的开始时间, 用于统计首个有效响应耗时。

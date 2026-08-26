@@ -50,6 +50,10 @@ export type Channel = StatsMetrics & {
     param_override?: string | null;
     channel_proxy?: string | null;
     match_regex?: string | null;
+    multiplier: number;
+    image_1k: number;
+    image_2k: number;
+    image_4k: number;
 };
 
 // ChannelServer 表示后端可能返回空 custom_header 的原始渠道数据。
@@ -79,6 +83,10 @@ type CreateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    multiplier?: number;
+    image_1k?: number;
+    image_2k?: number;
+    image_4k?: number;
 };
 
 /**
@@ -98,6 +106,10 @@ export type UpdateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    multiplier?: number;
+    image_1k?: number;
+    image_2k?: number;
+    image_4k?: number;
 };
 
 type FetchModelRequest = {

@@ -110,6 +110,22 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 		selectFields = append(selectFields, "match_regex")
 		updates.MatchRegex = req.MatchRegex
 	}
+	if req.Multiplier != nil {
+		selectFields = append(selectFields, "multiplier")
+		updates.Multiplier = *req.Multiplier
+	}
+	if req.Image1K != nil {
+		selectFields = append(selectFields, "image_1k")
+		updates.Image1K = *req.Image1K
+	}
+	if req.Image2K != nil {
+		selectFields = append(selectFields, "image_2k")
+		updates.Image2K = *req.Image2K
+	}
+	if req.Image4K != nil {
+		selectFields = append(selectFields, "image_4k")
+		updates.Image4K = *req.Image4K
+	}
 
 	var currentModels []model.ChannelModel
 	var channel model.Channel
