@@ -96,3 +96,23 @@ func imageRequestCount(image *llm.ImageRequest) int64 {
 	}
 	return *image.N
 }
+
+// pricedMetrics applies the channel-specific billing rule to one completed relay round.
+// Channel and channel-model statistics are recorded per round, so this must use the
+// selected channel rather than the request-level pricing state (which is finalized once).
+func pricedMetrics(channel model.Channel, modelName string, usage *llm.Usage, image *llm.ImageRequest) model.StatsMetrics {
+	metrics := usageMetrics(modelName, usage)
+	if image != nil {
+		_, rate, ok := imagePricingForRequest(channel, image)
+		if ok {
+			metrics.InputCost = 0
+			metrics.OutputCost = rate * float64(imageRequestCount(image))
+		}
+		return metrics
+	}
+	if channel.Multiplier > 0 {
+		metrics.InputCost *= channel.Multiplier
+		metrics.OutputCost *= channel.Multiplier
+	}
+	return metrics
+}

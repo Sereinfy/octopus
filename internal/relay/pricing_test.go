@@ -51,3 +51,30 @@ func TestImageRequestCountDefaultsToOne(t *testing.T) {
 		t.Fatalf("image count = %d, want 3", got)
 	}
 }
+
+func TestPricedMetricsUsesImageChargeForRoundStats(t *testing.T) {
+	n := int64(3)
+	metrics := pricedMetrics(
+		model.Channel{Image2K: 0.4},
+		"",
+		nil,
+		&llm.ImageRequest{Size: "2048x2048", N: &n},
+	)
+	if metrics.InputCost != 0 || abs(metrics.OutputCost-1.2) > 1e-9 {
+		t.Fatalf("image round metrics = (%v, %v), want (0, 1.2)", metrics.InputCost, metrics.OutputCost)
+	}
+}
+
+
+func TestChargeImageMarksMixedRetryPricing(t *testing.T) {
+	image := &llm.ImageRequest{Size: "1024x1024"}
+	request := &RequestState{}
+	request.chargeImage(model.Channel{Image1K: 0.1}, image)
+	request.chargeImage(model.Channel{Image1K: 0.3}, image)
+	if request.PricingLabel != "mixed" {
+		t.Fatalf("mixed image pricing label = %q, want mixed", request.PricingLabel)
+	}
+	if abs(request.PricingValue-0.2) > 1e-9 || abs(request.Cost-0.4) > 1e-9 {
+		t.Fatalf("mixed image pricing = (%v, %v), want (0.2, 0.4)", request.PricingValue, request.Cost)
+	}
+}

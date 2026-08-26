@@ -110,12 +110,18 @@ func (r *RequestState) chargeImage(channel model.Channel, image *llm.ImageReques
 
 	mu.Lock()
 	defer mu.Unlock()
+	previousLabel := r.PricingLabel
+	previousRate := r.PricingValue
 	r.imageCost += rate * float64(count)
-	r.Cost = r.imageCost
 	r.PricingMode = "image"
-	r.PricingLabel = label
-	r.PricingValue = rate
 	r.PricingCount += count
+	if r.PricingCount == count {
+		r.PricingLabel = label
+	} else if previousLabel != label || previousRate != rate {
+		r.PricingLabel = "mixed"
+	}
+	r.PricingValue = r.imageCost / float64(r.PricingCount)
+	r.Cost = r.imageCost
 	publishRequestLocked(r)
 }
 

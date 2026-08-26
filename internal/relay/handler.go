@@ -186,7 +186,9 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				}
 				cancelRound()
 				// 本轮真实失败只计入当前渠道和成员, 客户端取消与人工中止不计为渠道故障。
-				metrics := model.StatsMetrics{WaitTime: time.Since(roundStartedAt).Milliseconds(), RequestFailed: 1}
+				metrics := pricedMetrics(channel, channelModel.Name, nil, parsed.Image)
+				metrics.WaitTime = time.Since(roundStartedAt).Milliseconds()
+				metrics.RequestFailed = 1
 				_ = op.ChannelStatsUpdate(channel.ID, metrics)
 				_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
 
@@ -223,7 +225,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 					c.Header("Content-Type", "application/json")
 				}
 				// 非流式响应已有完整用量, 本轮渠道和成员统计可在提交前一次完成。
-				metrics := usageMetrics(channelModel.Name, result.usage)
+				metrics := pricedMetrics(channel, channelModel.Name, result.usage, parsed.Image)
 				metrics.WaitTime = roundWaitTime
 				metrics.RequestSuccess = 1
 				_ = op.ChannelStatsUpdate(channel.ID, metrics)
@@ -296,7 +298,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				result.usage = meta.Usage
 			}
 			// 流式响应结束并聚合出用量后, 按最终结果完成本轮渠道和成员统计。
-			metrics := usageMetrics(channelModel.Name, result.usage)
+			metrics := pricedMetrics(channel, channelModel.Name, result.usage, parsed.Image)
 			metrics.WaitTime = roundWaitTime
 			if err == nil {
 				metrics.RequestSuccess = 1
