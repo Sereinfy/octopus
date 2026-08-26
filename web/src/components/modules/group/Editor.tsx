@@ -28,7 +28,7 @@ export type GroupEditorValues = {
 const defaultRelayConfig: GroupRelayConfig = {
     member_max_attempts: 2,
     member_retry_interval_seconds: 1,
-    member_non_stream_response_timeout_seconds: 120,
+    member_non_stream_response_timeout_seconds: 180,
     member_stream_first_event_timeout_seconds: 30,
     member_cooldown_seconds: 60,
     member_affinity_seconds: 0,

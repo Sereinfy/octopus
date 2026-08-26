@@ -23,7 +23,7 @@ func DefaultGroupRelayConfig() GroupRelayConfig {
 	return GroupRelayConfig{
 		MemberMaxAttempts:                     2,
 		MemberRetryIntervalSeconds:            3,
-		MemberNonStreamResponseTimeoutSeconds: 120,
+		MemberNonStreamResponseTimeoutSeconds: 180,
 		MemberStreamFirstEventTimeoutSeconds:  30,
 		MemberCooldownSeconds:                 60,
 		MemberAffinitySeconds:                 300,
