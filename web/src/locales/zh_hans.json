@@ -159,6 +159,10 @@
             "hint": "为空禁止跨域，* 允许所有",
             "example": "只允许指定域名: https://example.com,https://example2.com"
         },
+        "replaceDeveloperRoleWithSystem": {
+            "label": "将 developer 角色替换为 system",
+            "hint": "兼容不支持 developer 角色的上游 Chat Completions 接口"
+        },
         "saved": "已保存",
         "backup": {
             "title": "备份 / 恢复",

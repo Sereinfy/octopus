@@ -7,9 +7,11 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
+	"github.com/bestruirui/octopus/internal/op"
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/pipeline"
@@ -136,10 +138,40 @@ func (c *cachedInbound) TransformRequest(ctx context.Context, raw *httpclient.Re
 }
 
 func (m *conversionMiddleware) OnInboundLlmRequest(_ context.Context, request *llm.Request) (*llm.Request, error) {
-	if request != nil && m.model != "" {
+	if request == nil {
+		return nil, nil
+	}
+	if m.model != "" {
 		request.Model = m.model
 	}
+	if replaceDeveloperRoleWithSystemEnabled() {
+		request = replaceDeveloperRoles(request)
+	}
 	return request, nil
+}
+
+func replaceDeveloperRoleWithSystemEnabled() bool {
+	enabled, err := op.SettingGetBool(model.SettingKeyReplaceDeveloperRoleWithSystem)
+	return err == nil && enabled
+}
+
+func replaceDeveloperRoles(request *llm.Request) *llm.Request {
+	if request == nil || len(request.Messages) == 0 {
+		return request
+	}
+	replaced := false
+	result := *request
+	result.Messages = slices.Clone(request.Messages)
+	for i := range result.Messages {
+		if strings.EqualFold(result.Messages[i].Role, "developer") {
+			result.Messages[i].Role = "system"
+			replaced = true
+		}
+	}
+	if !replaced {
+		return request
+	}
+	return &result
 }
 
 // OnOutboundRawRequest 在转换后的上游请求上应用渠道参数和自定义 Header。

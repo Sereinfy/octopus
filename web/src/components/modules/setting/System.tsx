@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'use-intl';
-import { Monitor, Globe, Clock, Shield, HelpCircle, X } from 'lucide-react';
+import { Monitor, Globe, Clock, Shield, MessageSquareText, HelpCircle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSettingList, useSetSetting, SettingKey } from '@/api/setting';
 import { toast } from 'sonner';
@@ -16,16 +17,19 @@ export function SettingSystem() {
     const [statsSaveInterval, setStatsSaveInterval] = useState('');
     const [corsAllowOrigins, setCorsAllowOrigins] = useState('');
     const [corsInputValue, setCorsInputValue] = useState('');
+    const [replaceDeveloperRoleWithSystem, setReplaceDeveloperRoleWithSystem] = useState(false);
 
     const initialProxyUrl = useRef('');
     const initialStatsSaveInterval = useRef('');
     const initialCorsAllowOrigins = useRef('');
+    const initialReplaceDeveloperRoleWithSystem = useRef('false');
 
     useEffect(() => {
         if (settings) {
             const proxy = settings.find(s => s.key === SettingKey.ProxyURL);
             const interval = settings.find(s => s.key === SettingKey.StatsSaveInterval);
             const cors = settings.find(s => s.key === SettingKey.CORSAllowOrigins);
+            const replaceDeveloperRole = settings.find(s => s.key === SettingKey.ReplaceDeveloperRoleWithSystem);
             if (proxy) {
                 queueMicrotask(() => setProxyUrl(proxy.value));
                 initialProxyUrl.current = proxy.value;
@@ -37,6 +41,10 @@ export function SettingSystem() {
             if (cors) {
                 queueMicrotask(() => setCorsAllowOrigins(cors.value));
                 initialCorsAllowOrigins.current = cors.value;
+            }
+            if (replaceDeveloperRole) {
+                queueMicrotask(() => setReplaceDeveloperRoleWithSystem(replaceDeveloperRole.value === 'true'));
+                initialReplaceDeveloperRoleWithSystem.current = replaceDeveloperRole.value;
             }
         }
     }, [settings]);
@@ -53,6 +61,8 @@ export function SettingSystem() {
                     initialStatsSaveInterval.current = value;
                 } else if (key === SettingKey.CORSAllowOrigins) {
                     initialCorsAllowOrigins.current = value;
+                } else if (key === SettingKey.ReplaceDeveloperRoleWithSystem) {
+                    initialReplaceDeveloperRoleWithSystem.current = value;
                 }
             }
         });
@@ -147,6 +157,34 @@ export function SettingSystem() {
                     onBlur={() => handleSave('stats_save_interval', statsSaveInterval, initialStatsSaveInterval.current)}
                     placeholder={t('statsSaveInterval.placeholder')}
                     className="w-48 rounded-xl"
+                />
+            </div>
+
+            {/* developer 角色兼容 */}
+            <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <MessageSquareText className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">{t('replaceDeveloperRoleWithSystem.label')}</span>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <HelpCircle className="size-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={10} align="center">
+                            {t('replaceDeveloperRoleWithSystem.hint')}
+                        </TooltipContent>
+                    </Tooltip>
+                </div>
+                <Switch
+                    checked={replaceDeveloperRoleWithSystem}
+                    onCheckedChange={(checked) => {
+                        setReplaceDeveloperRoleWithSystem(checked);
+                        handleSave(
+                            SettingKey.ReplaceDeveloperRoleWithSystem,
+                            String(checked),
+                            initialReplaceDeveloperRoleWithSystem.current,
+                        );
+                    }}
+                    aria-label={t('replaceDeveloperRoleWithSystem.label')}
                 />
             </div>
 

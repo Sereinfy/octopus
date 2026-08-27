@@ -9,11 +9,12 @@ import (
 type SettingKey string
 
 const (
-	SettingKeyProxyURL                SettingKey = "proxy_url"
-	SettingKeyStatsSaveInterval       SettingKey = "stats_save_interval"        // 将统计信息写入数据库的周期(分钟)
-	SettingKeyModelInfoUpdateInterval SettingKey = "model_info_update_interval" // 模型信息更新间隔(小时)
-	SettingKeySyncLLMInterval         SettingKey = "sync_llm_interval"          // LLM 同步间隔(小时)
-	SettingKeyCORSAllowOrigins        SettingKey = "cors_allow_origins"         // 跨域白名单(逗号分隔, 如 "example.com,example2.com"). 为空不允许跨域, "*"允许所有
+	SettingKeyProxyURL                       SettingKey = "proxy_url"
+	SettingKeyStatsSaveInterval              SettingKey = "stats_save_interval"                // 将统计信息写入数据库的周期(分钟)
+	SettingKeyModelInfoUpdateInterval        SettingKey = "model_info_update_interval"         // 模型信息更新间隔(小时)
+	SettingKeySyncLLMInterval                SettingKey = "sync_llm_interval"                  // LLM 同步间隔(小时)
+	SettingKeyCORSAllowOrigins               SettingKey = "cors_allow_origins"                 // 跨域白名单(逗号分隔, 如 "example.com,example2.com"). 为空不允许跨域, "*"允许所有
+	SettingKeyReplaceDeveloperRoleWithSystem SettingKey = "replace_developer_role_with_system" // 将 developer 消息角色替换为 system
 )
 
 type Setting struct {
@@ -24,10 +25,11 @@ type Setting struct {
 func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingKeyProxyURL, Value: ""},
-		{Key: SettingKeyStatsSaveInterval, Value: "10"},       // 默认10分钟保存一次统计信息
-		{Key: SettingKeyCORSAllowOrigins, Value: ""},          // CORS 默认不允许跨域，设置为 "*" 才允许所有来源
-		{Key: SettingKeyModelInfoUpdateInterval, Value: "24"}, // 默认24小时更新一次模型信息
-		{Key: SettingKeySyncLLMInterval, Value: "24"},         // 默认24小时同步一次LLM
+		{Key: SettingKeyStatsSaveInterval, Value: "10"},                 // 默认10分钟保存一次统计信息
+		{Key: SettingKeyCORSAllowOrigins, Value: ""},                    // CORS 默认不允许跨域，设置为 "*" 才允许所有来源
+		{Key: SettingKeyModelInfoUpdateInterval, Value: "24"},           // 默认24小时更新一次模型信息
+		{Key: SettingKeySyncLLMInterval, Value: "24"},                   // 默认24小时同步一次LLM
+		{Key: SettingKeyReplaceDeveloperRoleWithSystem, Value: "false"}, // 默认保留 developer 角色
 	}
 }
 
@@ -37,6 +39,11 @@ func (s *Setting) Validate() error {
 		_, err := strconv.Atoi(s.Value)
 		if err != nil {
 			return fmt.Errorf("model info update interval must be an integer")
+		}
+		return nil
+	case SettingKeyReplaceDeveloperRoleWithSystem:
+		if _, err := strconv.ParseBool(s.Value); err != nil {
+			return fmt.Errorf("replace developer role with system must be a boolean")
 		}
 		return nil
 	case SettingKeyProxyURL:

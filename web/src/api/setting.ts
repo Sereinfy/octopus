@@ -15,6 +15,7 @@ export const SettingKey = {
     ModelInfoUpdateInterval: 'model_info_update_interval',
     SyncLLMInterval: 'sync_llm_interval',
     CORSAllowOrigins: 'cors_allow_origins',
+    ReplaceDeveloperRoleWithSystem: 'replace_developer_role_with_system',
 } as const;
 
 /**
