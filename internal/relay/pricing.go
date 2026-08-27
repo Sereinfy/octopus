@@ -1,15 +1,19 @@
 package relay
 
 import (
+	"errors"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/looplj/axonhub/llm"
+	"github.com/looplj/axonhub/llm/httpclient"
 )
 
 var imageSizePattern = regexp.MustCompile(`(?i)^\s*(\d+)\s*[x×]\s*(\d+)`)
+var imageHTTPStatusPattern = regexp.MustCompile(`(?i)(?:HTTP(?: error)?|status)\s*[:=]?\s*(\d{3})`)
 
 // imagePricingForRequest returns the configured fixed charge for one image request.
 // When the requested size cannot be classified, the highest configured charge is used.
@@ -100,12 +104,41 @@ func imageRequestCount(image *llm.ImageRequest) int64 {
 	return *image.N
 }
 
+// imageAttemptBillable decides whether one upstream image attempt should be
+// included in the request's final user settlement. Explicit HTTP 4xx errors
+// are known rejections; timeouts, connection failures, unknown errors, and
+// 5xx responses are treated as submitted because the provider may have
+// accepted the request.
+func imageAttemptBillable(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	var httpErr *httpclient.Error
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode < http.StatusBadRequest || httpErr.StatusCode >= http.StatusInternalServerError
+	}
+	if matches := imageHTTPStatusPattern.FindStringSubmatch(err.Error()); len(matches) == 2 {
+		statusCode, parseErr := strconv.Atoi(matches[1])
+		if parseErr == nil {
+			return statusCode < http.StatusBadRequest || statusCode >= http.StatusInternalServerError
+		}
+	}
+	return true
+}
+
 // pricedMetrics applies the channel-specific billing rule to one completed relay round.
 // Channel and channel-model statistics are recorded per round, so this must use the
 // selected channel rather than the request-level pricing state (which is finalized once).
 func pricedMetrics(channel model.Channel, modelName string, usage *llm.Usage, image *llm.ImageRequest) model.StatsMetrics {
+	return pricedMetricsForRound(channel, modelName, usage, image, true)
+}
+
+// pricedMetricsForRound applies image pricing only when this upstream attempt
+// is billable. Non-image pricing is unchanged.
+func pricedMetricsForRound(channel model.Channel, modelName string, usage *llm.Usage, image *llm.ImageRequest, imageBillable bool) model.StatsMetrics {
 	metrics := usageMetrics(modelName, usage)
-	if image != nil {
+	if image != nil && imageBillable {
 		_, rate, ok := imagePricingForRequest(channel, image)
 		if ok {
 			metrics.InputCost = 0

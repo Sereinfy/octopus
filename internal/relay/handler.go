@@ -146,9 +146,8 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			// 按渠道协议构造出站转换器并确定是否可以直接透传。
 			roundStartedAt := time.Now() // 本轮上游调用的开始时间, 用于统计首个有效响应耗时。
 			outbound, passthrough, err := buildOutbound(channel, format)
-			if err == nil && isImageFormat(format) {
-				request.chargeImage(channel, parsed.Image)
-			}
+			imageAttemptStarted := err == nil && isImageFormat(format)
+			imageAttemptBillableResult := false
 
 			// 请求上游并等待首个有效响应: 非流式等待完整响应, 流式等待首个事件。
 			// 同协议渠道原样直通, 跨协议渠道经转换后请求; 此时尚未写给客户端, 失败仍可换目标重试。
@@ -182,6 +181,10 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 					}
 				}
 			}
+			if imageAttemptStarted {
+				imageAttemptBillableResult = imageAttemptBillable(err)
+				request.recordImageCharge(channel, parsed.Image, imageAttemptBillableResult)
+			}
 
 			if err != nil {
 				// 记录本轮上游调用已经结束及其失败原因。
@@ -199,7 +202,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				}
 				cancelRound()
 				// 本轮真实失败只计入当前渠道和成员, 客户端取消与人工中止不计为渠道故障。
-				metrics := pricedMetrics(channel, channelModel.Name, nil, parsed.Image)
+				metrics := pricedMetricsForRound(channel, channelModel.Name, nil, parsed.Image, imageAttemptBillableResult)
 				metrics.WaitTime = time.Since(roundStartedAt).Milliseconds()
 				metrics.RequestFailed = 1
 				_ = op.ChannelStatsUpdate(channel.ID, metrics)
@@ -238,7 +241,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 					c.Header("Content-Type", "application/json")
 				}
 				// 非流式响应已有完整用量, 本轮渠道和成员统计可在提交前一次完成。
-				metrics := pricedMetrics(channel, channelModel.Name, result.usage, parsed.Image)
+				metrics := pricedMetricsForRound(channel, channelModel.Name, result.usage, parsed.Image, imageAttemptBillableResult)
 				metrics.WaitTime = roundWaitTime
 				metrics.RequestSuccess = 1
 				_ = op.ChannelStatsUpdate(channel.ID, metrics)
@@ -311,7 +314,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				result.usage = meta.Usage
 			}
 			// 流式响应结束并聚合出用量后, 按最终结果完成本轮渠道和成员统计。
-			metrics := pricedMetrics(channel, channelModel.Name, result.usage, parsed.Image)
+			metrics := pricedMetricsForRound(channel, channelModel.Name, result.usage, parsed.Image, imageAttemptBillableResult)
 			metrics.WaitTime = roundWaitTime
 			if err == nil {
 				metrics.RequestSuccess = 1

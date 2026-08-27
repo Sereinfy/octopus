@@ -110,9 +110,17 @@ func (r *RequestState) setChatPricing(multiplier float64) {
 	publishRequestLocked(r)
 }
 
-// chargeImage records a fixed image charge at request dispatch time. This is
-// intentionally independent of the upstream result and therefore also covers retries.
+// chargeImage records one billable image attempt. The caller decides whether
+// the upstream result is billable; all attempts are settled together when the
+// logical client request finishes.
 func (r *RequestState) chargeImage(channel model.Channel, image *llm.ImageRequest) {
+	r.recordImageCharge(channel, image, true)
+}
+
+func (r *RequestState) recordImageCharge(channel model.Channel, image *llm.ImageRequest, billable bool) {
+	if !billable {
+		return
+	}
 	label, rate, ok := imagePricingForRequest(channel, image)
 	if !ok {
 		return
@@ -132,7 +140,6 @@ func (r *RequestState) chargeImage(channel model.Channel, image *llm.ImageReques
 		r.PricingLabel = "mixed"
 	}
 	r.PricingValue = r.imageCost / float64(r.PricingCount)
-	r.Cost = r.imageCost
 	publishRequestLocked(r)
 }
 

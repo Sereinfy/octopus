@@ -1,10 +1,14 @@
 package relay
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/looplj/axonhub/llm"
+	"github.com/looplj/axonhub/llm/httpclient"
 )
 
 func TestImageResolutionBucketUsesNearestArea(t *testing.T) {
@@ -56,6 +60,40 @@ func TestImageRequestCountDefaultsToOne(t *testing.T) {
 	}
 }
 
+func TestImageAttemptBillableClassifiesKnownHTTPRejections(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "success", err: nil, want: true},
+		{name: "bad request", err: &httpclient.Error{StatusCode: http.StatusBadRequest}, want: false},
+		{name: "rate limit", err: &httpclient.Error{StatusCode: http.StatusTooManyRequests}, want: false},
+		{name: "server error", err: &httpclient.Error{StatusCode: http.StatusInternalServerError}, want: true},
+		{name: "timeout", err: context.DeadlineExceeded, want: true},
+		{name: "unknown", err: errors.New("connection reset by peer"), want: true},
+		{name: "formatted bad request", err: errors.New("HTTP error 422"), want: false},
+	}
+	for _, test := range tests {
+		if got := imageAttemptBillable(test.err); got != test.want {
+			t.Fatalf("%s: imageAttemptBillable() = %v, want %v", test.name, got, test.want)
+		}
+	}
+}
+
+func TestRecordImageChargeSkipsNonBillableAttempt(t *testing.T) {
+	image := &llm.ImageRequest{Size: "1024x1024"}
+	request := &RequestState{}
+	request.recordImageCharge(model.Channel{Image1K: 0.1}, image, false)
+	request.recordImageCharge(model.Channel{Image1K: 0.1}, image, true)
+	if abs(request.Cost) > 1e-9 || abs(request.imageCost-0.1) > 1e-9 {
+		t.Fatalf("image cost after settlement = (cost=%v, imageCost=%v), want (0, 0.1)", request.Cost, request.imageCost)
+	}
+	if request.PricingCount != 1 {
+		t.Fatalf("pricing count = %d, want 1", request.PricingCount)
+	}
+}
+
 func TestPricedMetricsUsesImageChargeForRoundStats(t *testing.T) {
 	n := int64(3)
 	metrics := pricedMetrics(
@@ -77,7 +115,7 @@ func TestChargeImageMarksMixedRetryPricing(t *testing.T) {
 	if request.PricingLabel != "mixed" {
 		t.Fatalf("mixed image pricing label = %q, want mixed", request.PricingLabel)
 	}
-	if abs(request.PricingValue-0.2) > 1e-9 || abs(request.Cost-0.4) > 1e-9 {
-		t.Fatalf("mixed image pricing = (%v, %v), want (0.2, 0.4)", request.PricingValue, request.Cost)
+	if abs(request.PricingValue-0.2) > 1e-9 || abs(request.imageCost-0.4) > 1e-9 {
+		t.Fatalf("mixed image pricing = (%v, %v), want (0.2, 0.4)", request.PricingValue, request.imageCost)
 	}
 }
