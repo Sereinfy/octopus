@@ -13,13 +13,13 @@ export function Setting() {
     return (
         <div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl pb-24 md:pb-4">
             <div className="columns-1 gap-4 md:columns-2 *:mb-4 *:break-inside-avoid">
-                <SettingInfo />
+                <SettingAPIKey />
                 <SettingAppearance />
                 <SettingAccount />
                 <SettingSystem />
                 <SettingLog />
                 <SettingLLMPrice />
-                <SettingAPIKey />
+                <SettingInfo />
                 <SettingLLMSync />
                 <SettingBackup />
             </div>
