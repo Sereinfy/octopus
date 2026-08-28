@@ -76,7 +76,7 @@ function AutoGroupDialogContent() {
     };
 
     return (
-        <div className="flex h-[calc(100vh-2rem)] w-screen max-w-4xl flex-col">
+        <div className="flex h-[min(44rem,calc(90vh-2rem))] w-full flex-col">
             <MorphingDialogTitle className="shrink-0">
                 <header className="mb-4 flex items-center justify-between">
                     <div>
@@ -184,7 +184,7 @@ export function AutoGroupDialog() {
                 <span className="sr-only">{t('title')}</span>
             </MorphingDialogTrigger>
             <MorphingDialogContainer>
-                <MorphingDialogContent className="flex max-h-[calc(100vh-2rem)] w-fit max-w-full flex-col overflow-hidden rounded-3xl bg-card px-6 py-4 text-card-foreground">
+                <MorphingDialogContent className="relative flex w-full md:max-w-3xl flex-col overflow-hidden rounded-3xl bg-card px-4 py-2 text-card-foreground max-h-[90vh]">
                     <AutoGroupDialogContent />
                 </MorphingDialogContent>
             </MorphingDialogContainer>
