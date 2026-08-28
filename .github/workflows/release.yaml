@@ -2,7 +2,12 @@ name: release
 
 on:
   workflow_dispatch:
-
+  push:
+    branches:
+      - master
+    paths:
+      - main.go
+      
 permissions:
   contents: write
   packages: write
