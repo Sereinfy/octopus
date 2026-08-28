@@ -1,4 +1,5 @@
 import {
+    AutoGroupType,
     ChannelType,
     type Channel,
     type ChannelModelInput,
@@ -43,6 +44,7 @@ interface ChannelFormData {
     enabled: boolean;
     proxy: boolean;
     auto_sync: boolean;
+    auto_group: AutoGroupType;
     match_regex: string;
     multiplier: string;
     image_1k: string;
@@ -61,6 +63,7 @@ const emptyFormData: ChannelFormData = {
     param_override: '',
     models: [],
     auto_sync: false,
+    auto_group: AutoGroupType.None,
     enabled: true,
     proxy: false,
     match_regex: '',
@@ -91,6 +94,7 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
         models: channel.models.map(({ name, source }) => ({ name, source })),
         proxy: channel.proxy,
         auto_sync: channel.auto_sync,
+        auto_group: channel.auto_group,
         match_regex: channel.match_regex ?? '',
         multiplier: channel.multiplier > 0 ? String(channel.multiplier) : '',
         image_1k: channel.image_1k > 0 ? String(channel.image_1k) : '',
@@ -187,6 +191,7 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
                 models: formData.models,
                 proxy: formData.proxy,
                 auto_sync: formData.auto_sync,
+                auto_group: formData.auto_group,
                 custom_header,
                 channel_proxy: formData.channel_proxy.trim(),
                 param_override: formData.param_override.trim(),
@@ -208,6 +213,7 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
         if (modelsKey(formData.models) !== modelsKey(channel.models)) req.models = formData.models;
         if (formData.proxy !== channel.proxy) req.proxy = formData.proxy;
         if (formData.auto_sync !== channel.auto_sync) req.auto_sync = formData.auto_sync;
+        if (formData.auto_group !== channel.auto_group) req.auto_group = formData.auto_group;
         if (JSON.stringify(custom_header) !== JSON.stringify(channel.custom_header)) req.custom_header = custom_header;
         for (const key of ['channel_proxy', 'param_override', 'match_regex'] as const) {
             const next = formData[key].trim();
@@ -421,6 +427,26 @@ export function ChannelForm({ channel }: { channel?: Channel }) {
                         {t('advanced')}
                     </AccordionTrigger>
                     <AccordionContent className="pt-4 px-4 pb-4 space-y-4 border-t">
+                        <div className="space-y-2">
+                            <label htmlFor={`${idPrefix}-auto-group`} className="text-sm font-medium text-card-foreground">
+                                {t('autoGroup')}
+                            </label>
+                            <Select
+                                value={String(formData.auto_group)}
+                                onValueChange={(value) => setFormData({ ...formData, auto_group: Number(value) as AutoGroupType })}
+                            >
+                                <SelectTrigger id={`${idPrefix}-auto-group`} className="w-full rounded-xl">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={String(AutoGroupType.None)}>{t('autoGroupNone')}</SelectItem>
+                                    <SelectItem value={String(AutoGroupType.Fuzzy)}>{t('autoGroupFuzzy')}</SelectItem>
+                                    <SelectItem value={String(AutoGroupType.Exact)}>{t('autoGroupExact')}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">{t('autoGroupHint')}</p>
+                        </div>
+
                         <div className="space-y-2">
                             <label htmlFor={`${idPrefix}-channel-proxy`} className="text-sm font-medium text-card-foreground">
                                 {t('channelProxy')}

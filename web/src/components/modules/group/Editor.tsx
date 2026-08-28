@@ -424,6 +424,7 @@ export function GroupEditor({
                         </Field>
                     </div>
 
+
                     <Tabs defaultValue="members" className="flex flex-1 min-h-0">
                         <TabsList className="grid w-full shrink-0 grid-cols-2">
                             <TabsTrigger value="members">{t('form.members')}</TabsTrigger>

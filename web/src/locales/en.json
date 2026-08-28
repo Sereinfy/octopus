@@ -347,6 +347,35 @@
                 "confirmDelete": "Confirm Delete"
             }
         },
+        "autoGroup": {
+            "title": "Automatic Grouping",
+            "description": "Match channel models to groups and keep automatically managed members in sync.",
+            "loading": "Loading configuration...",
+            "globalMode": "Bulk apply mode",
+            "globalModeHint": "Selecting a mode here updates every channel; channels can then be adjusted individually.",
+            "normalize": "Normalize model names",
+            "normalizeHint": "Ignore provider prefixes and trailing release dates during exact matching.",
+            "createMissing": "Create missing groups",
+            "createMissingHint": "In exact mode, create groups for models that do not yet have one.",
+            "channels": "Channel rules",
+            "channelsHint": "Disabled channels keep their setting but are not available for routing.",
+            "disabled": "Disabled",
+            "modelCount": "{count, plural, one {# model} other {# models}}",
+            "cancel": "Cancel",
+            "save": "Save",
+            "saveAndRun": "Save and run",
+            "running": "Running...",
+            "mode": {
+                "0": "Off",
+                "1": "Fuzzy",
+                "2": "Exact"
+            },
+            "toast": {
+                "saved": "Automatic grouping configuration saved",
+                "savedAndRun": "Automatic grouping completed",
+                "failed": "Automatic grouping failed"
+            }
+        },
         "form": {
             "name": "Group Name",
             "mode": "Routing Mode",
@@ -507,6 +536,11 @@
             "typeGemini": "Gemini",
             "typeVolcengine": "Volcengine",
             "autoSync": "Auto Sync",
+            "autoGroup": "Automatic Grouping",
+            "autoGroupHint": "Keeps automatically added group members synchronized after channel updates and model sync.",
+            "autoGroupNone": "Off",
+            "autoGroupFuzzy": "Fuzzy match",
+            "autoGroupExact": "Exact match",
             "matchRegex": "Match Regex",
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
             "submit": "Create Channel",

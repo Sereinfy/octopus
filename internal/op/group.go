@@ -68,6 +68,9 @@ func GroupCreate(group *model.Group, ctx context.Context) error {
 		group.Items[i].ID = 0
 		group.Items[i].GroupID = 0
 		group.Items[i].ChannelModel = nil
+		if group.Items[i].Source == "" {
+			group.Items[i].Source = model.GroupItemSourceManual
+		}
 	}
 	if err := db.GetDB().WithContext(ctx).Create(group).Error; err != nil {
 		return err
@@ -113,6 +116,7 @@ func GroupUpdate(req *model.GroupUpdateRequest, ctx context.Context) (*model.Gro
 			GroupID:        req.ID,
 			ChannelModelID: item.ChannelModelID,
 			Priority:       item.Priority,
+			Source:         model.GroupItemSourceManual,
 		}
 	}
 	var group model.Group

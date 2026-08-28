@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	syncModelsMu        sync.Mutex   // 保证同一时间只有一个模型同步任务运行。
+	syncModelsMu         sync.Mutex   // 保证同一时间只有一个模型同步任务运行。
 	lastSyncModelsTimeMu sync.RWMutex // 最近同步时间的读写锁。
 	lastSyncModelsTime   = time.Now() // 最近一次模型同步任务结束时间。
 )
@@ -127,7 +127,7 @@ func SyncModelsTask() error {
 			}
 		}
 		if _, err := op.ChannelUpdate(&model.ChannelUpdateRequest{
-			ID:    channel.ID,
+			ID:     channel.ID,
 			Models: &models,
 		}, ctx); err != nil {
 			log.Warnf("failed to sync models for channel %s: %v", channel.Name, err)
@@ -135,6 +135,14 @@ func SyncModelsTask() error {
 				syncErr = fmt.Errorf("failed to update channel %s models: %w", channel.Name, err)
 			}
 			continue
+		}
+		if channel.AutoGroup != model.AutoGroupTypeNone {
+			if _, err := op.RunGroupAutoGroup([]int{channel.ID}, ctx); err != nil {
+				log.Warnf("failed to auto group channel %s: %v", channel.Name, err)
+				if syncErr == nil {
+					syncErr = fmt.Errorf("failed to auto group channel %s: %w", channel.Name, err)
+				}
+			}
 		}
 		if len(deletedModels) > 0 {
 			log.Infof("deleted channel %s models: %v", channel.Name, deletedModels)

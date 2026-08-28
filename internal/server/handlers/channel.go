@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
@@ -14,6 +15,7 @@ import (
 	"github.com/bestruirui/octopus/internal/server/resp"
 	"github.com/bestruirui/octopus/internal/server/router"
 	"github.com/bestruirui/octopus/internal/task"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 )
 
@@ -79,6 +81,7 @@ func createChannel(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	go runAutoGroupAsync(channel.ID)
 	resp.Success(c, channel)
 }
 
@@ -105,7 +108,16 @@ func updateChannel(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	go runAutoGroupAsync(channel.ID)
 	resp.Success(c, channel)
+}
+
+func runAutoGroupAsync(channelID int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if _, err := op.RunGroupAutoGroup([]int{channelID}, ctx); err != nil {
+		log.Warnf("auto group failed for channel %d: %v", channelID, err)
+	}
 }
 
 func enableChannel(c *gin.Context) {

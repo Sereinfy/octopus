@@ -1,5 +1,44 @@
 package model
 
+import (
+	"strconv"
+	"strings"
+)
+
+// AutoGroupType controls how channel models are matched to groups.
+type AutoGroupType int
+
+const (
+	AutoGroupTypeNone  AutoGroupType = 0
+	AutoGroupTypeFuzzy AutoGroupType = 1
+	AutoGroupTypeExact AutoGroupType = 2
+)
+
+func (t AutoGroupType) Valid() bool {
+	switch t {
+	case AutoGroupTypeNone, AutoGroupTypeFuzzy, AutoGroupTypeExact:
+		return true
+	default:
+		return false
+	}
+}
+
+// ParseAutoGroupSettingValue accepts the new numeric form and legacy booleans.
+func ParseAutoGroupSettingValue(value string) (AutoGroupType, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "false":
+		return AutoGroupTypeNone, true
+	case "true":
+		return AutoGroupTypeFuzzy, true
+	}
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return AutoGroupTypeNone, false
+	}
+	mode := AutoGroupType(parsed)
+	return mode, mode.Valid()
+}
+
 // 渠道使用的上游服务提供方。
 type ChannelProvider string
 
@@ -21,33 +60,34 @@ const (
 
 // 单个上游渠道的连接和转发配置。
 type Channel struct {
-	ID            int             `json:"id" gorm:"primaryKey"`                                                       // 渠道主键。
-	Name          string          `json:"name" gorm:"unique;not null"`                                                // 渠道名称。
-	Type          ChannelProvider `json:"type"`                                                                       // 上游服务提供方。
-	Enabled       bool            `json:"enabled" gorm:"default:true"`                                                // 渠道是否可用。
-	BaseURL       string          `json:"base_url"`                                                                    // 唯一的上游基础地址。
-	Key           string          `json:"key"`                                                                         // 唯一的上游访问凭据。
+	ID            int             `json:"id" gorm:"primaryKey"`                                                     // 渠道主键。
+	Name          string          `json:"name" gorm:"unique;not null"`                                              // 渠道名称。
+	Type          ChannelProvider `json:"type"`                                                                     // 上游服务提供方。
+	Enabled       bool            `json:"enabled" gorm:"default:true"`                                              // 渠道是否可用。
+	BaseURL       string          `json:"base_url"`                                                                 // 唯一的上游基础地址。
+	Key           string          `json:"key"`                                                                      // 唯一的上游访问凭据。
 	Models        []ChannelModel  `json:"models,omitempty" gorm:"foreignKey:ChannelID;constraint:OnDelete:CASCADE"` // 渠道提供的模型。
-	Proxy         bool            `json:"proxy" gorm:"default:false"`                                                 // 是否使用代理。
-	AutoSync      bool            `json:"auto_sync" gorm:"default:false"`                                            // 是否自动同步模型。
-	CustomHeader  []CustomHeader  `json:"custom_header" gorm:"serializer:json"`                                      // 追加到上游请求的 Header。
-	ParamOverride *string         `json:"param_override"`                                                             // 请求参数覆盖配置。
-	ChannelProxy  *string         `json:"channel_proxy"`                                                              // 渠道专用代理地址。
-	MatchRegex    *string         `json:"match_regex"`                                                                // 模型同步过滤表达式。
+	Proxy         bool            `json:"proxy" gorm:"default:false"`                                               // 是否使用代理。
+	AutoSync      bool            `json:"auto_sync" gorm:"default:false"`                                           // 是否自动同步模型。
+	AutoGroup     AutoGroupType   `json:"auto_group" gorm:"not null;default:0"`                                     // 自动分组匹配模式。
+	CustomHeader  []CustomHeader  `json:"custom_header" gorm:"serializer:json"`                                     // 追加到上游请求的 Header。
+	ParamOverride *string         `json:"param_override"`                                                           // 请求参数覆盖配置。
+	ChannelProxy  *string         `json:"channel_proxy"`                                                            // 渠道专用代理地址。
+	MatchRegex    *string         `json:"match_regex"`                                                              // 模型同步过滤表达式。
 	Multiplier    float64         `json:"multiplier"`                                                               // 对话模型费用倍率。
 	Image1K       float64         `json:"image_1k"`                                                                 // 1K 生图单次费用。
 	Image2K       float64         `json:"image_2k"`                                                                 // 2K 生图单次费用。
 	Image4K       float64         `json:"image_4k"`                                                                 // 4K 生图单次费用。
-	StatsMetrics                                                                                                        // 渠道累计统计信息。
+	StatsMetrics                  // 渠道累计统计信息。
 }
 
 // 渠道提供的单个上游模型。
 type ChannelModel struct {
-	ID        int                `json:"id" gorm:"primaryKey"`                                            // 渠道模型主键。
-	ChannelID int                `json:"channel_id" gorm:"not null;index:idx_channel_model_name,unique"` // 所属渠道 ID。
-	Name      string             `json:"name" gorm:"not null;index:idx_channel_model_name,unique"`       // 上游模型名称。
-	Source    ChannelModelSource `json:"source" gorm:"not null;default:auto"`                             // 模型来源。
-	StatsMetrics                                                                                              // 渠道模型统计信息。
+	ID           int                `json:"id" gorm:"primaryKey"`                                           // 渠道模型主键。
+	ChannelID    int                `json:"channel_id" gorm:"not null;index:idx_channel_model_name,unique"` // 所属渠道 ID。
+	Name         string             `json:"name" gorm:"not null;index:idx_channel_model_name,unique"`       // 上游模型名称。
+	Source       ChannelModelSource `json:"source" gorm:"not null;default:auto"`                            // 模型来源。
+	StatsMetrics                    // 渠道模型统计信息。
 }
 
 // 追加到上游请求的单个 Header。
@@ -67,6 +107,7 @@ type ChannelUpdateRequest struct {
 	Models        *[]ChannelModel  `json:"models,omitempty"`         // 新的渠道模型集合。
 	Proxy         *bool            `json:"proxy,omitempty"`          // 新的代理开关。
 	AutoSync      *bool            `json:"auto_sync,omitempty"`      // 新的自动同步开关。
+	AutoGroup     *AutoGroupType   `json:"auto_group,omitempty"`     // 新的自动分组匹配模式。
 	CustomHeader  *[]CustomHeader  `json:"custom_header,omitempty"`  // 新的自定义 Header。
 	ChannelProxy  *string          `json:"channel_proxy,omitempty"`  // 新的渠道代理地址。
 	ParamOverride *string          `json:"param_override,omitempty"` // 新的参数覆盖配置。

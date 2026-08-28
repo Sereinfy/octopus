@@ -89,6 +89,7 @@ interface PageActionsProps {
     filterOptions: PageActionOption[]; // 当前页面支持的筛选选项。
     filterValue: string; // 当前页面选中的筛选标识。
     onFilterChange: (value: string) => void; // 更新当前页面的筛选条件。
+    leadingActions?: ReactNode; // 搜索按钮右侧的页面专属操作。
     children: ReactNode; // 当前页面提供的创建表单内容。
 }
 
@@ -104,6 +105,7 @@ export function PageActions({
     filterOptions,
     filterValue,
     onFilterChange,
+    leadingActions,
     children,
 }: PageActionsProps) {
     const t = useTranslations('toolbar');
@@ -155,6 +157,8 @@ export function PageActions({
                     </button>
                 </div>
             </div>
+
+            {leadingActions}
 
             <Popover>
                 <PopoverTrigger asChild>

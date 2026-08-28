@@ -15,6 +15,9 @@ const (
 	SettingKeySyncLLMInterval                SettingKey = "sync_llm_interval"                  // LLM 同步间隔(小时)
 	SettingKeyCORSAllowOrigins               SettingKey = "cors_allow_origins"                 // 跨域白名单(逗号分隔, 如 "example.com,example2.com"). 为空不允许跨域, "*"允许所有
 	SettingKeyReplaceDeveloperRoleWithSystem SettingKey = "replace_developer_role_with_system" // 将 developer 消息角色替换为 system
+	SettingKeyAutoGroupGlobalMode            SettingKey = "auto_group_global_mode"             // 全局自动分组模式（0关闭/1模糊/2精确）
+	SettingKeyAutoGroupCreateMissingEnabled  SettingKey = "auto_group_create_missing_enabled"  // 是否自动创建缺失分组
+	SettingKeyAutoGroupNormalizeEnabled      SettingKey = "auto_group_normalize_enabled"       // 是否归一化模型名
 )
 
 type Setting struct {
@@ -30,6 +33,9 @@ func DefaultSettings() []Setting {
 		{Key: SettingKeyModelInfoUpdateInterval, Value: "24"},           // 默认24小时更新一次模型信息
 		{Key: SettingKeySyncLLMInterval, Value: "24"},                   // 默认24小时同步一次LLM
 		{Key: SettingKeyReplaceDeveloperRoleWithSystem, Value: "false"}, // 默认保留 developer 角色
+		{Key: SettingKeyAutoGroupGlobalMode, Value: "0"},
+		{Key: SettingKeyAutoGroupCreateMissingEnabled, Value: "false"},
+		{Key: SettingKeyAutoGroupNormalizeEnabled, Value: "false"},
 	}
 }
 
@@ -44,6 +50,16 @@ func (s *Setting) Validate() error {
 	case SettingKeyReplaceDeveloperRoleWithSystem:
 		if _, err := strconv.ParseBool(s.Value); err != nil {
 			return fmt.Errorf("replace developer role with system must be a boolean")
+		}
+		return nil
+	case SettingKeyAutoGroupGlobalMode:
+		if _, ok := ParseAutoGroupSettingValue(s.Value); !ok {
+			return fmt.Errorf("auto group global mode must be one of 0, 1, 2, true, false")
+		}
+		return nil
+	case SettingKeyAutoGroupCreateMissingEnabled, SettingKeyAutoGroupNormalizeEnabled:
+		if _, err := strconv.ParseBool(s.Value); err != nil {
+			return fmt.Errorf("auto group setting must be a boolean")
 		}
 		return nil
 	case SettingKeyProxyURL:
