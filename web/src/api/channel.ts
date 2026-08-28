@@ -14,6 +14,13 @@ export enum ChannelType {
     Volcengine = 'volcengine',
 }
 
+export enum AutoGroupType {
+    None = 0,
+    Fuzzy = 1,
+    Exact = 2,
+    Regex = 3,
+}
+
 type CustomHeader = {
     header_key: string;
     header_value: string;
@@ -46,6 +53,7 @@ export type Channel = StatsMetrics & {
     models: ChannelModel[];
     proxy: boolean;
     auto_sync: boolean;
+    auto_group: AutoGroupType;
     custom_header: CustomHeader[];
     param_override?: string | null;
     channel_proxy?: string | null;
@@ -79,6 +87,7 @@ type CreateChannelRequest = {
     models: ChannelModelInput[];
     proxy?: boolean;
     auto_sync?: boolean;
+    auto_group?: AutoGroupType;
     custom_header?: CustomHeader[];
     channel_proxy?: string | null;
     param_override?: string | null;
@@ -102,6 +111,7 @@ export type UpdateChannelRequest = {
     models?: ChannelModelInput[];
     proxy?: boolean;
     auto_sync?: boolean;
+    auto_group?: AutoGroupType;
     custom_header?: CustomHeader[];
     channel_proxy?: string | null;
     param_override?: string | null;

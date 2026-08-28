@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ArrowUpAZ } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 import { GroupCard } from './Card';
+import { AutoGroupDialog } from './AutoGroupDialog';
 import { CreateDialogContent } from './Create';
 import { useRuntimeClock } from './MemberStatus';
 import { useGroupList } from '@/api/group';
@@ -19,7 +20,9 @@ export function GroupActions() {
     const setFilter = usePageActionsStore((state) => state.setGroupFilter);
 
     return (
-        <PageActions
+        <div className="flex items-center gap-2">
+            <AutoGroupDialog />
+            <PageActions
             searchTerm={searchTerm}
             onSearchTermChange={(value) => setSearchTerm('group', value)}
             sortOptions={[
@@ -41,7 +44,8 @@ export function GroupActions() {
             }}
         >
             <CreateDialogContent />
-        </PageActions>
+            </PageActions>
+        </div>
     );
 }
 

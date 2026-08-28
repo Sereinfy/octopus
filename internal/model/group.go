@@ -59,32 +59,42 @@ func NormalizeGroupRelayConfig(config *GroupRelayConfig) {
 
 // 客户端模型名称及其可手动选择或故障转移的上游分组。
 type Group struct {
-	ID             int              `json:"id" gorm:"primaryKey"`                                                          // 分组主键。
-	Name           string           `json:"name" gorm:"unique;not null"`                                                   // 客户端请求使用的模型名称。
-	Mode           GroupMode        `json:"mode" gorm:"not null;default:manual" binding:"omitempty,oneof=manual failover"` // 选择成员的模式。
-	ActiveItemID   int              `json:"active_item_id" gorm:"not null;default:0"`                                   // 手动模式指定的成员，故障转移模式忽略该值，0 表示未指定。
-	RelayConfig    GroupRelayConfig `json:"relay_config" gorm:"serializer:json"`                                           // 该分组的 Relay 路由配置。
-	Items          []GroupItem      `json:"items,omitempty" gorm:"foreignKey:GroupID;constraint:OnDelete:CASCADE"`      // 该分组可手动选择或故障转移的分组项。
+	ID           int              `json:"id" gorm:"primaryKey"`                                                          // 分组主键。
+	Name         string           `json:"name" gorm:"unique;not null"`                                                   // 客户端请求使用的模型名称。
+	Mode         GroupMode        `json:"mode" gorm:"not null;default:manual" binding:"omitempty,oneof=manual failover"` // 选择成员的模式。
+	MatchRegex   string           `json:"match_regex"`
+	ActiveItemID int              `json:"active_item_id" gorm:"not null;default:0"`                              // 手动模式指定的成员，故障转移模式忽略该值，0 表示未指定。
+	RelayConfig  GroupRelayConfig `json:"relay_config" gorm:"serializer:json"`                                   // 该分组的 Relay 路由配置。
+	Items        []GroupItem      `json:"items,omitempty" gorm:"foreignKey:GroupID;constraint:OnDelete:CASCADE"` // 该分组可手动选择或故障转移的分组项。
 }
 
 // 分组内一个可选择的渠道模型分组项。
 type GroupItem struct {
-	ID             int           `json:"id" gorm:"primaryKey"`                                                                    // 分组项主键。
-	GroupID        int           `json:"group_id" gorm:"not null;index:idx_group_channel_model,unique"`                           // 所属分组 ID。
-	ChannelModelID int           `json:"channel_model_id" gorm:"not null;index:idx_group_channel_model,unique"`                  // 引用的渠道模型 ID。
-	ChannelModel   *ChannelModel `json:"channel_model,omitempty" gorm:"foreignKey:ChannelModelID;references:ID;constraint:OnDelete:CASCADE"` // 分组项引用的渠道模型。
-	Priority       int           `json:"priority" gorm:"not null"`                                                                // Priority 决定界面展示和故障转移模式下的成员切换顺序。
+	ID             int             `json:"id" gorm:"primaryKey"`                                                                               // 分组项主键。
+	GroupID        int             `json:"group_id" gorm:"not null;index:idx_group_channel_model,unique"`                                      // 所属分组 ID。
+	ChannelModelID int             `json:"channel_model_id" gorm:"not null;index:idx_group_channel_model,unique"`                              // 引用的渠道模型 ID。
+	ChannelModel   *ChannelModel   `json:"channel_model,omitempty" gorm:"foreignKey:ChannelModelID;references:ID;constraint:OnDelete:CASCADE"` // 分组项引用的渠道模型。
+	Priority       int             `json:"priority" gorm:"not null"`                                                                           // Priority 决定界面展示和故障转移模式下的成员切换顺序。
+	Source         GroupItemSource `json:"source" gorm:"not null;default:manual"`
 }
+
+type GroupItemSource string
+
+const (
+	GroupItemSourceManual GroupItemSource = "manual"
+	GroupItemSourceAuto   GroupItemSource = "auto"
+)
 
 // 分组普通配置和成员变更请求。
 type GroupUpdateRequest struct {
 	ID            int                      `json:"id" binding:"required"`                                    // 待更新的分组主键。
 	Name          *string                  `json:"name,omitempty"`                                           // Name 仅在名称变更时发送。
 	Mode          *GroupMode               `json:"mode,omitempty" binding:"omitempty,oneof=manual failover"` // Mode 仅在选择模式变更时发送。
-	RelayConfig   *GroupRelayConfig        `json:"relay_config,omitempty"`                                   // RelayConfig 仅在 Relay 配置变更时发送完整配置。
-	ItemsToAdd    []GroupItemAddRequest    `json:"items_to_add,omitempty"`                                   // 待新增的分组项。
-	ItemsToUpdate []GroupItemUpdateRequest `json:"items_to_update,omitempty"`                                // 待调整展示和故障转移顺序的分组项。
-	ItemsToDelete []int                    `json:"items_to_delete,omitempty"`                                // 待删除的分组项 ID。
+	MatchRegex    *string                  `json:"match_regex,omitempty"`
+	RelayConfig   *GroupRelayConfig        `json:"relay_config,omitempty"`    // RelayConfig 仅在 Relay 配置变更时发送完整配置。
+	ItemsToAdd    []GroupItemAddRequest    `json:"items_to_add,omitempty"`    // 待新增的分组项。
+	ItemsToUpdate []GroupItemUpdateRequest `json:"items_to_update,omitempty"` // 待调整展示和故障转移顺序的分组项。
+	ItemsToDelete []int                    `json:"items_to_delete,omitempty"` // 待删除的分组项 ID。
 }
 
 // 手动模式下切换或清空分组当前分组项的请求。
@@ -95,11 +105,44 @@ type GroupActiveItemUpdateRequest struct {
 // 新增分组项请求。
 type GroupItemAddRequest struct {
 	ChannelModelID int `json:"channel_model_id" binding:"required"` // 待引用的渠道模型 ID。
-	Priority       int `json:"priority,omitempty"`                   // 分组项的界面展示和故障转移顺序。
+	Priority       int `json:"priority,omitempty"`                  // 分组项的界面展示和故障转移顺序。
 }
 
 // 分组项展示和故障转移顺序更新请求。
 type GroupItemUpdateRequest struct {
 	ID       int `json:"id" binding:"required"` // 待更新的分组项主键。
 	Priority int `json:"priority,omitempty"`    // 新的界面展示和故障转移顺序。
+}
+
+type GroupAutoGroupConfig struct {
+	GlobalMode          AutoGroupType          `json:"global_mode"`
+	CreateMissingGroups bool                   `json:"create_missing_groups"`
+	NormalizeModelNames bool                   `json:"normalize_model_names"`
+	Sources             []GroupAutoGroupSource `json:"sources"`
+}
+
+type GroupAutoGroupSource struct {
+	ChannelID   int           `json:"channel_id"`
+	ChannelName string        `json:"channel_name"`
+	Enabled     bool          `json:"enabled"`
+	AutoGroup   AutoGroupType `json:"auto_group"`
+	ModelCount  int           `json:"model_count"`
+	Models      []string      `json:"models"`
+}
+
+type GroupAutoGroupSourceUpdateRequest struct {
+	ChannelID int            `json:"channel_id" binding:"required"`
+	AutoGroup *AutoGroupType `json:"auto_group,omitempty"`
+}
+
+type GroupAutoGroupConfigUpdateRequest struct {
+	GlobalMode          *AutoGroupType                      `json:"global_mode,omitempty"`
+	CreateMissingGroups *bool                               `json:"create_missing_groups,omitempty"`
+	NormalizeModelNames *bool                               `json:"normalize_model_names,omitempty"`
+	Items               []GroupAutoGroupSourceUpdateRequest `json:"items,omitempty"`
+	RunNow              bool                                `json:"run_now"`
+}
+
+type GroupAutoGroupRunRequest struct {
+	ChannelIDs []int `json:"channel_ids,omitempty"`
 }

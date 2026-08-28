@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from './client';
-import { groupListQueryOptions } from './queries';
-import type { ChannelModel } from './channel';
+import { channelListQueryOptions, groupListQueryOptions } from './queries';
+import type { AutoGroupType, ChannelModel } from './channel';
 
 // GroupMode 表示分组的手动或故障转移路由模式。
 export type GroupMode = 'manual' | 'failover';
@@ -24,6 +24,7 @@ export interface GroupItem {
     channel_model_id: number;
     channel_model?: ChannelModel;
     priority: number;
+    source?: 'manual' | 'auto';
 }
 
 // GroupRuntimeStatus 表示 Relay 当前进程内的实时路由状态。
@@ -40,6 +41,7 @@ export interface Group {
     id?: number;
     name: string;
     mode: GroupMode;
+    match_regex?: string;
     active_item_id: number;
     relay_config: GroupRelayConfig;
     items?: GroupItem[];
@@ -63,10 +65,79 @@ export interface GroupUpdateRequest {
     id: number;
     name?: string;
     mode?: GroupMode;
+    match_regex?: string;
     relay_config?: GroupRelayConfig;
     items_to_add?: GroupItemAddRequest[];
     items_to_update?: GroupItemUpdateRequest[];
     items_to_delete?: number[];
+}
+
+export interface AutoGroupSource {
+    channel_id: number;
+    channel_name: string;
+    enabled: boolean;
+    auto_group: AutoGroupType;
+    model_count: number;
+    models: string[];
+}
+
+export interface AutoGroupConfig {
+    global_mode: AutoGroupType;
+    create_missing_groups: boolean;
+    normalize_model_names: boolean;
+    sources: AutoGroupSource[];
+}
+
+export interface AutoGroupResult {
+    channels: number;
+    added: number;
+    removed: number;
+    created: number;
+}
+
+export interface AutoGroupConfigUpdateRequest {
+    global_mode: AutoGroupType;
+    create_missing_groups: boolean;
+    normalize_model_names: boolean;
+    items: Array<{ channel_id: number; auto_group: AutoGroupType }>;
+    run_now?: boolean;
+}
+
+const autoGroupConfigQueryKey = ['groups', 'auto-group', 'config'] as const;
+
+export function useAutoGroupConfig() {
+    return useQuery({
+        queryKey: autoGroupConfigQueryKey,
+        queryFn: () => apiRequest<AutoGroupConfig>('/api/v1/group/auto-group/config'),
+    });
+}
+
+export function useUpdateAutoGroupConfig() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: AutoGroupConfigUpdateRequest) =>
+            apiRequest<AutoGroupConfig>('/api/v1/group/auto-group/config', { method: 'PUT', body: data }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: autoGroupConfigQueryKey });
+            queryClient.invalidateQueries({ queryKey: channelListQueryOptions.queryKey });
+            queryClient.invalidateQueries({ queryKey: groupListQueryOptions.queryKey });
+        },
+    });
+}
+
+export function useRunAutoGroup() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (channelIds?: number[]) =>
+            apiRequest<AutoGroupResult>('/api/v1/group/auto-group/run', {
+                method: 'POST',
+                body: { channel_ids: channelIds ?? [] },
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: autoGroupConfigQueryKey });
+            queryClient.invalidateQueries({ queryKey: groupListQueryOptions.queryKey });
+        },
+    });
 }
 
 // useGroupList 获取全部分组，并由明确需要运行状态的页面控制是否建立实时连接。

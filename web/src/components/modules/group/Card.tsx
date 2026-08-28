@@ -47,6 +47,7 @@ function EditDialogContent({ group, displayMembers, isSubmitting, onSubmit }: Ed
                     initial={{
                         name: group.name,
                         mode: group.mode,
+                        match_regex: group.match_regex,
                         relay_config: group.relay_config,
                         members: displayMembers,
                     }}
@@ -179,6 +180,7 @@ export const GroupCard = memo(function GroupCard({ group, now }: { group: Group;
 
         if (values.name !== group.name) payload.name = values.name;
         if (values.mode !== group.mode) payload.mode = values.mode;
+        if (values.match_regex !== (group.match_regex ?? '')) payload.match_regex = values.match_regex;
         if (
             values.relay_config.member_max_attempts !== group.relay_config.member_max_attempts ||
             values.relay_config.member_retry_interval_seconds !== group.relay_config.member_retry_interval_seconds ||
@@ -203,7 +205,7 @@ export const GroupCard = memo(function GroupCard({ group, now }: { group: Group;
             },
             onError,
         });
-    }, [group.id, group.items, group.name, group.relay_config, onSuccess, onError, updateGroup]);
+    }, [group.id, group.items, group.match_regex, group.mode, group.name, group.relay_config, onSuccess, onError, updateGroup]);
 
     return (
     <article className="flex flex-col rounded-3xl border border-border bg-card text-card-foreground p-4">

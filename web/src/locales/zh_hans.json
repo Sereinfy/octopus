@@ -347,12 +347,44 @@
                 "confirmDelete": "确认删除"
             }
         },
+        "autoGroup": {
+            "title": "自动分组",
+            "description": "按规则匹配渠道模型，并持续同步由系统自动管理的分组成员。",
+            "loading": "正在加载配置...",
+            "globalMode": "批量应用模式",
+            "globalModeHint": "在这里选择会同步设置全部渠道，之后仍可逐个渠道调整。",
+            "normalize": "归一化模型名称",
+            "normalizeHint": "精确匹配时忽略供应商前缀和末尾发布日期。",
+            "createMissing": "创建缺失分组",
+            "createMissingHint": "精确模式下，为尚无分组的模型自动创建分组。",
+            "channels": "渠道规则",
+            "channelsHint": "已禁用渠道会保留配置，但不会参与路由。",
+            "disabled": "已禁用",
+            "modelCount": "{count} 个模型",
+            "cancel": "取消",
+            "save": "保存",
+            "saveAndRun": "保存并执行",
+            "running": "执行中...",
+            "mode": {
+                "0": "关闭",
+                "1": "模糊匹配",
+                "2": "精确匹配",
+                "3": "分组正则"
+            },
+            "toast": {
+                "saved": "自动分组配置已保存",
+                "savedAndRun": "自动分组执行完成",
+                "failed": "自动分组执行失败"
+            }
+        },
         "form": {
             "name": "分组名称",
             "mode": "路由模式",
             "modeHint": "手动固定选中成员；故障转移按成员顺序并在失败时切换",
             "manual": "手动",
             "failover": "故障转移",
+            "matchRegex": "自动分组正则",
+            "matchRegexPlaceholder": "可选：正则模式渠道使用；留空时按精确匹配处理",
             "members": "成员",
             "relay": "路由策略",
             "retryCount": "总尝试次数",
@@ -507,6 +539,12 @@
             "typeGemini": "Gemini",
             "typeVolcengine": "火山引擎",
             "autoSync": "自动同步",
+            "autoGroup": "自动分组",
+            "autoGroupHint": "渠道更新或模型同步后，自动维护由系统添加的分组成员。",
+            "autoGroupNone": "关闭",
+            "autoGroupFuzzy": "模糊匹配",
+            "autoGroupExact": "精确匹配",
+            "autoGroupRegex": "分组正则",
             "matchRegex": "匹配正则",
             "matchRegexPlaceholder": "可选：用于匹配请求模型名称的正则表达式",
             "submit": "创建渠道",

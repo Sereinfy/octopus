@@ -20,6 +20,7 @@ import { matchesGroupName, memberKey, normalizeKey } from './utils';
 export type GroupEditorValues = {
     name: string;
     mode: GroupMode;
+    match_regex: string;
     relay_config: GroupRelayConfig;
     members: SelectedMember[];
 };
@@ -258,6 +259,7 @@ export function GroupEditor({
     initial?: {
         name?: string;
         mode?: GroupMode;
+        match_regex?: string;
         relay_config?: Partial<GroupRelayConfig>;
         members?: SelectedMember[];
     };
@@ -283,6 +285,7 @@ export function GroupEditor({
     const [groupName, setGroupName] = useState(initial?.name ?? '');
     const [showGroupNameCandidates, setShowGroupNameCandidates] = useState(false);
     const [mode, setMode] = useState<GroupMode>(initial?.mode ?? 'manual');
+    const [matchRegex, setMatchRegex] = useState(initial?.match_regex ?? '');
     const [relayConfig, setRelayConfig] = useState<GroupRelayConfig>(() => ({
         ...defaultRelayConfig,
         ...initial?.relay_config,
@@ -349,6 +352,7 @@ export function GroupEditor({
         onSubmit({
             name: groupName,
             mode,
+            match_regex: matchRegex.trim(),
             relay_config: relayConfig,
             members: selectedMembers,
         });
@@ -423,6 +427,17 @@ export function GroupEditor({
                             </Select>
                         </Field>
                     </div>
+
+                    <Field>
+                        <FieldLabel htmlFor="group-match-regex">{t('form.matchRegex')}</FieldLabel>
+                        <Input
+                            id="group-match-regex"
+                            value={matchRegex}
+                            onChange={(event) => setMatchRegex(event.target.value)}
+                            placeholder={t('form.matchRegexPlaceholder')}
+                            className="rounded-xl"
+                        />
+                    </Field>
 
                     <Tabs defaultValue="members" className="flex flex-1 min-h-0">
                         <TabsList className="grid w-full shrink-0 grid-cols-2">

@@ -59,6 +59,9 @@ func GroupCreate(group *model.Group, ctx context.Context) error {
 	if group.Name == "" {
 		return fmt.Errorf("group name is required")
 	}
+	if err := validateGroupMatchRegex(group.MatchRegex); err != nil {
+		return err
+	}
 	group.ActiveItemID = 0
 	if group.Mode == "" {
 		group.Mode = model.GroupModeManual
@@ -68,6 +71,9 @@ func GroupCreate(group *model.Group, ctx context.Context) error {
 		group.Items[i].ID = 0
 		group.Items[i].GroupID = 0
 		group.Items[i].ChannelModel = nil
+		if group.Items[i].Source == "" {
+			group.Items[i].Source = model.GroupItemSourceManual
+		}
 	}
 	if err := db.GetDB().WithContext(ctx).Create(group).Error; err != nil {
 		return err
@@ -100,6 +106,13 @@ func GroupUpdate(req *model.GroupUpdateRequest, ctx context.Context) (*model.Gro
 		selectFields = append(selectFields, "mode")
 		updates.Mode = *req.Mode
 	}
+	if req.MatchRegex != nil {
+		if err := validateGroupMatchRegex(*req.MatchRegex); err != nil {
+			return nil, err
+		}
+		selectFields = append(selectFields, "match_regex")
+		updates.MatchRegex = *req.MatchRegex
+	}
 	if req.RelayConfig != nil {
 		config := *req.RelayConfig
 		model.NormalizeGroupRelayConfig(&config)
@@ -113,6 +126,7 @@ func GroupUpdate(req *model.GroupUpdateRequest, ctx context.Context) (*model.Gro
 			GroupID:        req.ID,
 			ChannelModelID: item.ChannelModelID,
 			Priority:       item.Priority,
+			Source:         model.GroupItemSourceManual,
 		}
 	}
 	var group model.Group

@@ -32,6 +32,9 @@ func ChannelCreate(channel *model.Channel, ctx context.Context) error {
 	if channel == nil {
 		return fmt.Errorf("channel is required")
 	}
+	if !channel.AutoGroup.Valid() {
+		return fmt.Errorf("invalid auto group type")
+	}
 	channel.ID = 0
 	channel.StatsMetrics = model.StatsMetrics{}
 	for i := range channel.Models {
@@ -93,6 +96,13 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 	if req.AutoSync != nil {
 		selectFields = append(selectFields, "auto_sync")
 		updates.AutoSync = *req.AutoSync
+	}
+	if req.AutoGroup != nil {
+		if !req.AutoGroup.Valid() {
+			return nil, fmt.Errorf("invalid auto group type")
+		}
+		selectFields = append(selectFields, "auto_group")
+		updates.AutoGroup = *req.AutoGroup
 	}
 	if req.CustomHeader != nil {
 		selectFields = append(selectFields, "custom_header")
@@ -259,6 +269,19 @@ func ChannelGet(id int) (model.Channel, error) {
 		return model.Channel{}, fmt.Errorf("channel not found")
 	}
 	return channelSnapshot(channel), nil
+}
+
+func channelRefreshCacheByID(id int, ctx context.Context) error {
+	var channel model.Channel
+	if err := db.GetDB().WithContext(ctx).First(&channel, id).Error; err != nil {
+		return err
+	}
+	if cached, ok := channelCache.Get(id); ok {
+		channel.StatsMetrics = cached.StatsMetrics
+	}
+	channel.Models = nil
+	channelCache.Set(id, channel)
+	return nil
 }
 
 // ChannelModelGet 返回指定渠道模型的缓存副本。
