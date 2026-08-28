@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/bestruirui/octopus/internal/utils/shutdown"
 	"github.com/charmbracelet/log"
@@ -75,7 +76,11 @@ func UpdateCore() error {
 	_ = os.RemoveAll(oldPath)
 
 	log.Infof("update core success")
-	go restartExecutable(execPath)
+	// 给 HTTP 处理器留出返回成功响应的时间，避免重启抢先关闭连接导致前端误报更新失败。
+	go func() {
+		time.Sleep(time.Second)
+		restartExecutable(execPath)
+	}()
 	return nil
 }
 
