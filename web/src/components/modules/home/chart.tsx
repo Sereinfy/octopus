@@ -53,9 +53,12 @@ export function StatsChart() {
         const points = summary?.points ?? [];
         if (points.length === 0) return [];
 
-        const firstUsageIndex = points.findIndex((point) => point.request_count > 0);
+        const hasRequestCount = points.some((point) => typeof point.request_count === 'number');
+        const firstUsageIndex = points.findIndex((point) => hasRequestCount
+            ? point.request_count > 0
+            : point.total_cost > 0);
         const startIndex = firstUsageIndex === -1
-            ? Math.max(points.length - 1, 0)
+            ? hasRequestCount ? Math.max(points.length - 1, 0) : 0
             : Math.max(firstUsageIndex - 1, 0);
 
         return points.slice(startIndex).map((point) => ({
@@ -64,19 +67,6 @@ export function StatsChart() {
         }));
     }, [summary?.points]);
 
-    const chartTicks = useMemo(() => {
-        const dates = chartData.map((point) => point.date);
-        if (dates.length <= 8) return dates;
-
-        const step = Math.max(1, Math.ceil((dates.length - 2) / 6));
-        const indexes = new Set<number>();
-        for (let index = 0; index < dates.length - 2; index += step) {
-            indexes.add(index);
-        }
-        indexes.add(dates.length - 2);
-        indexes.add(dates.length - 1);
-        return [...indexes].sort((a, b) => a - b).map((index) => dates[index]);
-    }, [chartData]);
     const heroUnitSuffix = hero?.unit.endsWith('$') ? hero.unit.slice(0, -1) : hero?.unit;
 
     return (
@@ -132,7 +122,7 @@ export function StatsChart() {
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="date" ticks={chartTicks} interval={0} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
                     <YAxis
                         tickLine={false}
                         axisLine={false}
