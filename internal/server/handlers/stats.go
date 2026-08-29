@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -44,6 +45,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/summary", http.MethodGet).
 				Handle(getStatsSummary),
+		).
+		AddRoute(
+			router.NewRoute("/clear", http.MethodDelete).
+				Handle(clearStats),
 		).
 		AddRoute(
 			router.NewRoute("/apikey", http.MethodGet).
@@ -109,6 +114,16 @@ func getStatsSummary(c *gin.Context) {
 		return
 	}
 	resp.Success(c, summary)
+}
+
+func clearStats(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	if err := op.StatsClear(ctx); err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func getStatsAPIKey(c *gin.Context) {

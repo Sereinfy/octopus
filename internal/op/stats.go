@@ -335,6 +335,79 @@ func StatsAPIKeyDel(id int) error {
 	return db.GetDB().Delete(&model.StatsAPIKey{}, id).Error
 }
 
+// StatsClear 清空所有统计数据，但保留渠道、模型和 API Key 配置。
+func StatsClear(ctx context.Context) error {
+	resetValues := map[string]any{
+		"input_token":       int64(0),
+		"output_token":      int64(0),
+		"cache_read_token":  int64(0),
+		"cache_write_token": int64(0),
+		"input_cost":        float64(0),
+		"output_cost":       float64(0),
+		"wait_time":         int64(0),
+		"request_success":   int64(0),
+		"request_failed":    int64(0),
+	}
+
+	if err := db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		clear := tx.Session(&gorm.Session{AllowGlobalUpdate: true})
+		if err := clear.Delete(&model.StatsDaily{}).Error; err != nil {
+			return err
+		}
+		if err := clear.Delete(&model.StatsHourly{}).Error; err != nil {
+			return err
+		}
+		if err := clear.Delete(&model.StatsAPIKey{}).Error; err != nil {
+			return err
+		}
+		if err := clear.Model(&model.StatsTotal{}).Where("id = ?", 1).Updates(resetValues).Error; err != nil {
+			return err
+		}
+		if err := clear.Model(&model.Channel{}).Updates(resetValues).Error; err != nil {
+			return err
+		}
+		return clear.Model(&model.ChannelModel{}).Updates(resetValues).Error
+	}); err != nil {
+		return err
+	}
+
+	today := time.Now().Format("20060102")
+	statsTotalCacheLock.Lock()
+	statsTotalCache = model.StatsTotal{ID: 1}
+	statsTotalCacheLock.Unlock()
+
+	statsDailyCacheLock.Lock()
+	statsDailyCache = model.StatsDaily{Date: today}
+	statsDailyCacheLock.Unlock()
+
+	statsHourlyCacheLock.Lock()
+	statsHourlyCache = [24]model.StatsHourly{}
+	statsHourlyCacheLock.Unlock()
+
+	statsAPIKeyCache.Clear()
+	statsAPIKeyCacheNeedUpdateLock.Lock()
+	statsAPIKeyCacheNeedUpdate = make(map[int]struct{})
+	statsAPIKeyCacheNeedUpdateLock.Unlock()
+
+	channelStatsNeedUpdateLock.Lock()
+	for id, channel := range channelCache.GetAll() {
+		channel.StatsMetrics = model.StatsMetrics{}
+		channelCache.Set(id, channel)
+	}
+	channelStatsNeedUpdate = make(map[int]struct{})
+	channelStatsNeedUpdateLock.Unlock()
+
+	channelModelStatsNeedUpdateLock.Lock()
+	for id, channelModel := range channelModelCache.GetAll() {
+		channelModel.StatsMetrics = model.StatsMetrics{}
+		channelModelCache.Set(id, channelModel)
+	}
+	channelModelStatsNeedUpdate = make(map[int]struct{})
+	channelModelStatsNeedUpdateLock.Unlock()
+
+	return nil
+}
+
 func StatsTotalGet() model.StatsTotal {
 	statsTotalCacheLock.RLock()
 	defer statsTotalCacheLock.RUnlock()

@@ -308,7 +308,14 @@
                 "clearing": "清空中..."
             },
             "clearSuccess": "日誌已清空",
-            "clearFailed": "清空失敗"
+            "clearFailed": "清空失敗",
+            "clearStats": {
+                "label": "清空統計數據",
+                "button": "清空統計",
+                "clearing": "清空中..."
+            },
+            "clearStatsSuccess": "統計數據已清空",
+            "clearStatsFailed": "清空統計失敗"
         }
     },
     "group": {

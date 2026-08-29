@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from './client';
 import { statsDailyQueryOptions, statsHourlyQueryOptions, statsSummaryQueryOptions, statsTodayQueryOptions, statsTotalQueryOptions } from './queries';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
@@ -211,6 +211,20 @@ const statsTotalFormattedQueryOptions = queryOptions({
  */
 export function useStatsTotal() {
     return useQuery(statsTotalFormattedQueryOptions);
+}
+
+// useClearStats 清空服务端累计统计，并刷新首页与排行相关查询。
+export function useClearStats() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => apiRequest<null>('/api/v1/stats/clear', { method: 'DELETE' }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['stats'] });
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+            queryClient.invalidateQueries({ queryKey: ['groups'] });
+            queryClient.invalidateQueries({ queryKey: ['apikey'] });
+        },
+    });
 }
 
 export function useStatsSummary(period: StatsSummary['period']) {

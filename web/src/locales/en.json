@@ -308,7 +308,14 @@
                 "clearing": "Clearing..."
             },
             "clearSuccess": "Logs cleared",
-            "clearFailed": "Failed to clear logs"
+            "clearFailed": "Failed to clear logs",
+            "clearStats": {
+                "label": "Clear Statistics",
+                "button": "Clear Stats",
+                "clearing": "Clearing..."
+            },
+            "clearStatsSuccess": "Statistics cleared",
+            "clearStatsFailed": "Failed to clear statistics"
         }
     },
     "group": {
