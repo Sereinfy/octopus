@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHomeViewStore, type ChartPeriod } from '@/components/modules/home/store';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { useMemo } from 'react';
 import { useTranslations } from 'use-intl';
 
 const PERIODS: readonly ChartPeriod[] = ['1', '7', '30', 'all'];
@@ -46,10 +47,34 @@ export function StatsChart() {
             totalTokens: formatCount(0).formatted,
             waitTime: formatTime(0).formatted,
         };
-    const chartData = summary?.points.map((point) => ({
-        date: formatDate(point.date),
-        total_cost: point.total_cost,
-    })) ?? [];
+    const chartData = useMemo(() => {
+        const points = summary?.points ?? [];
+        if (points.length === 0) return [];
+
+        const firstUsageIndex = points.findIndex((point) => point.total_cost > 0);
+        const startIndex = firstUsageIndex === -1
+            ? Math.max(points.length - 1, 0)
+            : Math.max(firstUsageIndex - 1, 0);
+
+        return points.slice(startIndex).map((point) => ({
+            date: formatDate(point.date),
+            total_cost: point.total_cost,
+        }));
+    }, [summary?.points]);
+
+    const chartTicks = useMemo(() => {
+        const dates = chartData.map((point) => point.date);
+        if (dates.length <= 8) return dates;
+
+        const step = Math.max(1, Math.ceil((dates.length - 2) / 6));
+        const indexes = new Set<number>();
+        for (let index = 0; index < dates.length - 2; index += step) {
+            indexes.add(index);
+        }
+        indexes.add(dates.length - 2);
+        indexes.add(dates.length - 1);
+        return [...indexes].sort((a, b) => a - b).map((index) => dates[index]);
+    }, [chartData]);
     const heroUnitSuffix = hero?.unit.endsWith('$') ? hero.unit.slice(0, -1) : hero?.unit;
 
     return (
@@ -104,7 +129,7 @@ export function StatsChart() {
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                    <XAxis dataKey="date" ticks={chartTicks} interval={0} tickLine={false} axisLine={false} />
                     <YAxis
                         tickLine={false}
                         axisLine={false}
