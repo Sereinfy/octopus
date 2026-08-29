@@ -108,6 +108,7 @@
                 "inputTokens": "输入词元",
                 "outputTokens": "输出词元",
                 "cacheHits": "缓存命中",
+                "cacheWrites": "缓存写入",
                 "cacheHitRate": "缓存命中率",
                 "totalTokens": "总词元",
                 "waitTime": "耗时"
@@ -202,6 +203,8 @@
                 "noData": "暂无统计数据",
                 "inputToken": "输入词元",
                 "outputToken": "输出词元",
+                "cacheHits": "缓存命中",
+                "cacheWrites": "缓存写入",
                 "inputCost": "输入费用",
                 "outputCost": "输出费用",
                 "requestSuccess": "成功请求",
@@ -312,7 +315,9 @@
             "clearStats": {
                 "label": "清空统计数据",
                 "button": "清空统计",
-                "clearing": "清空中..."
+                "clearing": "清空中...",
+                "cancel": "取消",
+                "confirm": "确认清空"
             },
             "clearStatsSuccess": "统计数据已清空",
             "clearStatsFailed": "清空统计失败"
@@ -488,6 +493,7 @@
             "totalToken": "总词元",
             "cacheHitRate": "缓存命中率",
             "cacheHits": "缓存命中",
+            "cacheWrites": "缓存写入",
             "totalCost": "总成本",
             "avgWaitTime": "等待时间",
             "models": "模型",

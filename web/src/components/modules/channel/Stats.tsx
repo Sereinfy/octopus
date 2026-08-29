@@ -92,7 +92,11 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
             label: t('cacheHitRate'),
             value: <MetricValue metric={stats.cache_hit_rate} />,
             sub: (
-                <span>{t('cacheHits')}: {stats.cache_read_token.formatted.value}{stats.cache_read_token.formatted.unit}</span>
+                <>
+                    <span>{t('cacheHits')}: {stats.cache_read_token.formatted.value}{stats.cache_read_token.formatted.unit}</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{t('cacheWrites')}: {stats.cache_write_token.formatted.value}{stats.cache_write_token.formatted.unit}</span>
+                </>
             ),
         },
         {

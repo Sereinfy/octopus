@@ -18,6 +18,15 @@ var activityMaxRequestCount int64     // 最近 54 周每日请求量的最大�
 var activityMaxCalculatedAt time.Time // 最大值上次计算时间。
 var activityMaxMu sync.Mutex          // 保护最大值及计算时间的并发更新。
 
+// resetActivityMaxCache clears the derived daily-activity scale after a
+// destructive statistics reset. The raw daily endpoint remains unchanged.
+func resetActivityMaxCache() {
+	activityMaxMu.Lock()
+	activityMaxRequestCount = 0
+	activityMaxCalculatedAt = time.Time{}
+	activityMaxMu.Unlock()
+}
+
 type statsDailyResponse struct {
 	MaxRequestCount int64              `json:"max_request_count"` // 最近 54 周每日请求量的最大值。
 	Items           []model.StatsDaily `json:"items"`             // 每日原始统计数据。
@@ -123,6 +132,7 @@ func clearStats(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	resetActivityMaxCache()
 	c.Status(http.StatusNoContent)
 }
 

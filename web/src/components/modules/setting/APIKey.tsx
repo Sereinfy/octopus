@@ -433,6 +433,19 @@ function APIKeyStatsCard({
                         </div>
                     </div>
                     <div className="rounded-lg bg-muted/40 p-3">
+                        <div className="text-xs text-muted-foreground">{t('apiKey.stats.cacheHits')}</div>
+                        <div className="font-medium tabular-nums">
+                            {stats.cache_read_token.formatted.value}{stats.cache_read_token.formatted.unit}
+                            <span className="ml-1 text-xs text-muted-foreground">({stats.cache_hit_rate.formatted.value})</span>
+                        </div>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                        <div className="text-xs text-muted-foreground">{t('apiKey.stats.cacheWrites')}</div>
+                        <div className="font-medium tabular-nums">
+                            {stats.cache_write_token.formatted.value}{stats.cache_write_token.formatted.unit}
+                        </div>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3">
                         <div className="text-xs text-muted-foreground">{t('apiKey.stats.inputCost')}</div>
                         <div className="font-medium tabular-nums">
                             {stats.input_cost.formatted.value}

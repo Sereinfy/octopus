@@ -1,4 +1,5 @@
 import { BarChart3, ScrollText, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslations } from 'use-intl';
 import { useClearLogs } from '@/api/log';
 import { useClearStats } from '@/api/stats';
@@ -10,6 +11,7 @@ export function SettingLog() {
     const t = useTranslations('setting');
     const clearLogs = useClearLogs();
     const clearStats = useClearStats();
+    const [confirmClearStats, setConfirmClearStats] = useState(false);
 
     const handleClearLogs = () => {
         clearLogs.mutate(undefined, {
@@ -20,7 +22,10 @@ export function SettingLog() {
 
     const handleClearStats = () => {
         clearStats.mutate(undefined, {
-            onSuccess: () => toast.success(t('log.clearStatsSuccess')),
+            onSuccess: () => {
+                setConfirmClearStats(false);
+                toast.success(t('log.clearStatsSuccess'));
+            },
             onError: () => toast.error(t('log.clearStatsFailed')),
         });
     };
@@ -51,15 +56,38 @@ export function SettingLog() {
                     <BarChart3 className="size-5 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.clearStats.label')}</span>
                 </div>
-                <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleClearStats}
-                    disabled={clearStats.isPending}
-                    className="rounded-xl"
-                >
-                    {clearStats.isPending ? t('log.clearStats.clearing') : t('log.clearStats.button')}
-                </Button>
+                {!confirmClearStats ? (
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setConfirmClearStats(true)}
+                        disabled={clearStats.isPending}
+                        className="rounded-xl"
+                    >
+                        {t('log.clearStats.button')}
+                    </Button>
+                ) : (
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setConfirmClearStats(false)}
+                            disabled={clearStats.isPending}
+                            className="rounded-xl"
+                        >
+                            {t('log.clearStats.cancel')}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleClearStats}
+                            disabled={clearStats.isPending}
+                            className="rounded-xl"
+                        >
+                            {clearStats.isPending ? t('log.clearStats.clearing') : t('log.clearStats.confirm')}
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -108,6 +108,7 @@
                 "inputTokens": "輸入詞元",
                 "outputTokens": "輸出詞元",
                 "cacheHits": "快取命中",
+                "cacheWrites": "快取寫入",
                 "cacheHitRate": "快取命中率",
                 "totalTokens": "總詞元",
                 "waitTime": "耗時"
@@ -202,6 +203,8 @@
                 "noData": "暫無統計數據",
                 "inputToken": "輸入詞元",
                 "outputToken": "輸出詞元",
+                "cacheHits": "快取命中",
+                "cacheWrites": "快取寫入",
                 "inputCost": "輸入費用",
                 "outputCost": "輸出費用",
                 "requestSuccess": "成功請求",
@@ -312,7 +315,9 @@
             "clearStats": {
                 "label": "清空統計數據",
                 "button": "清空統計",
-                "clearing": "清空中..."
+                "clearing": "清空中...",
+                "cancel": "取消",
+                "confirm": "確認清空"
             },
             "clearStatsSuccess": "統計數據已清空",
             "clearStatsFailed": "清空統計失敗"
@@ -488,6 +493,7 @@
             "totalToken": "總詞元",
             "cacheHitRate": "快取命中率",
             "cacheHits": "快取命中",
+            "cacheWrites": "快取寫入",
             "totalCost": "總成本",
             "avgWaitTime": "等待時間",
             "models": "模型",

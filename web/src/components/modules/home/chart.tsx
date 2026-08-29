@@ -34,6 +34,7 @@ export function StatsChart() {
             inputTokens: summary.input_token.formatted,
             outputTokens: summary.output_token.formatted,
             cacheHits: summary.cache_read_token.formatted,
+            cacheWrites: summary.cache_write_token.formatted,
             cacheHitRate: summary.cache_hit_rate.formatted,
             totalTokens: summary.total_token.formatted,
             waitTime: summary.wait_time.formatted,
@@ -43,6 +44,7 @@ export function StatsChart() {
             inputTokens: formatCount(0).formatted,
             outputTokens: formatCount(0).formatted,
             cacheHits: formatCount(0).formatted,
+            cacheWrites: formatCount(0).formatted,
             cacheHitRate: { value: '0.0%', unit: '' },
             totalTokens: formatCount(0).formatted,
             waitTime: formatTime(0).formatted,
@@ -51,7 +53,7 @@ export function StatsChart() {
         const points = summary?.points ?? [];
         if (points.length === 0) return [];
 
-        const firstUsageIndex = points.findIndex((point) => point.total_cost > 0);
+        const firstUsageIndex = points.findIndex((point) => point.request_count > 0);
         const startIndex = firstUsageIndex === -1
             ? Math.max(points.length - 1, 0)
             : Math.max(firstUsageIndex - 1, 0);
@@ -113,6 +115,7 @@ export function StatsChart() {
                 <StatItem label={t('metrics.outputTokens')} value={metrics.outputTokens} />
                 <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.cacheHits')} value={metrics.cacheHits} />
+                <StatItem label={t('metrics.cacheWrites')} value={metrics.cacheWrites} />
                 <StatItem label={t('metrics.cacheHitRate')} value={metrics.cacheHitRate} />
                 <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.totalTokens')} value={metrics.totalTokens} />

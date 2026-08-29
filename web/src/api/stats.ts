@@ -54,7 +54,9 @@ export function formatPercentage(value: number | undefined) {
 export function formatCacheHitRate(inputToken: number | undefined, cacheReadToken: number | undefined) {
     const input = Math.max(0, inputToken ?? 0);
     const cached = Math.max(0, cacheReadToken ?? 0);
-    const rate = input + cached > 0 ? (cached / (input + cached)) * 100 : 0;
+    // PromptTokens already includes cached tokens in the unified usage model;
+    // adding cached again would double-count them in the denominator.
+    const rate = input > 0 ? Math.min(100, (cached / input) * 100) : 0;
     return formatPercentage(rate);
 }
 interface StatsDailyFormattedResponse {
@@ -70,6 +72,7 @@ type StatsTotalFormatted = StatsMetricsFormatted;
 export interface StatsSummaryPoint {
     date: string;
     total_cost: number;
+    request_count: number;
 }
 
 export interface StatsSummary extends StatsMetrics {

@@ -108,6 +108,7 @@
                 "inputTokens": "Input Tokens",
                 "outputTokens": "Output Tokens",
                 "cacheHits": "Cache Hits",
+                "cacheWrites": "Cache Writes",
                 "cacheHitRate": "Cache Hit Rate",
                 "totalTokens": "Total Tokens",
                 "waitTime": "Latency"
@@ -202,6 +203,8 @@
                 "noData": "No statistics available",
                 "inputToken": "Input Token",
                 "outputToken": "Output Token",
+                "cacheHits": "Cache Hits",
+                "cacheWrites": "Cache Writes",
                 "inputCost": "Input Cost",
                 "outputCost": "Output Cost",
                 "requestSuccess": "Request Success",
@@ -312,7 +315,9 @@
             "clearStats": {
                 "label": "Clear Statistics",
                 "button": "Clear Stats",
-                "clearing": "Clearing..."
+                "clearing": "Clearing...",
+                "cancel": "Cancel",
+                "confirm": "Confirm"
             },
             "clearStatsSuccess": "Statistics cleared",
             "clearStatsFailed": "Failed to clear statistics"
@@ -488,6 +493,7 @@
             "totalToken": "Total Tokens",
             "cacheHitRate": "Cache Hit Rate",
             "cacheHits": "Cache Hits",
+            "cacheWrites": "Cache Writes",
             "totalCost": "Total Cost",
             "avgWaitTime": "Wait Time",
             "models": "Model",

@@ -29,8 +29,9 @@ type StatsDaily struct {
 }
 
 type StatsSummaryPoint struct {
-	Date      string  `json:"date"`
-	TotalCost float64 `json:"total_cost"`
+	Date         string  `json:"date"`
+	TotalCost    float64 `json:"total_cost"`
+	RequestCount int64   `json:"request_count"`
 }
 
 type StatsSummary struct {
