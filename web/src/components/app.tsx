@@ -9,8 +9,8 @@ import {
     groupListQueryOptions,
     modelListQueryOptions,
     statsDailyQueryOptions,
-    statsHourlyQueryOptions,
-    statsTotalQueryOptions,
+    statsSummaryQueryOptions,
+    statsTodayQueryOptions,
 } from '@/api/queries';
 import { AppShell } from '@/components/app-shell';
 import { LoginForm } from '@/components/modules/login';
@@ -71,8 +71,8 @@ export function AppContainer() {
                 queryClient.fetchQuery(groupListQueryOptions),
                 queryClient.fetchQuery(modelListQueryOptions),
                 queryClient.fetchQuery(statsDailyQueryOptions),
-                queryClient.fetchQuery(statsHourlyQueryOptions),
-                queryClient.fetchQuery(statsTotalQueryOptions),
+                queryClient.fetchQuery(statsSummaryQueryOptions('7')),
+                queryClient.fetchQuery(statsTodayQueryOptions),
             ];
 
         void Promise.all(requests).then(() => {

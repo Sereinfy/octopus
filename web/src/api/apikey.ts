@@ -4,6 +4,7 @@ import { apiKeyDashboardStatsQueryOptions, apiKeyListQueryOptions } from './quer
 import { useAuthStore } from './user';
 import { StatsAPIKey, StatsAPIKeyFormatted } from './stats';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
+import { formatCacheHitRate } from './stats';
 
 /**
  * API Key 数据
@@ -62,6 +63,9 @@ export function useAPIKeyDashboardStats() {
                 api_key_id: data.stats.api_key_id,
                 input_token: formatCount(data.stats.input_token),
                 output_token: formatCount(data.stats.output_token),
+                cache_read_token: formatCount(data.stats.cache_read_token),
+                cache_write_token: formatCount(data.stats.cache_write_token),
+                cache_hit_rate: formatCacheHitRate(data.stats.input_token, data.stats.cache_read_token),
                 total_token: formatCount(data.stats.input_token + data.stats.output_token),
                 input_cost: formatMoney(data.stats.input_cost),
                 output_cost: formatMoney(data.stats.output_cost),

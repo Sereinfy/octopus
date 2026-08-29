@@ -3,7 +3,7 @@ import type { APIKey, APIKeyStatsResponse } from './apikey';
 import type { ChannelServer } from './channel';
 import type { Group } from './group';
 import type { LLMInfo } from './model';
-import type { StatsDailyResponse, StatsHourly, StatsTotal } from './stats';
+import type { StatsDaily, StatsDailyResponse, StatsHourly, StatsSummary, StatsTotal } from './stats';
 import { apiRequest } from './client';
 
 // apiKeyDashboardStatsQueryOptions 供页面查询和启动预取共享 API Key 统计定义。
@@ -42,6 +42,12 @@ export const statsDailyQueryOptions = queryOptions({
     queryFn: () => apiRequest<StatsDailyResponse>('/api/v1/stats/daily'),
 });
 
+// statsTodayQueryOptions 提供未落库的今日内存统计，供首页覆盖每日快照。
+export const statsTodayQueryOptions = queryOptions({
+    queryKey: ['stats', 'today'],
+    queryFn: () => apiRequest<StatsDaily>('/api/v1/stats/today'),
+});
+
 // statsHourlyQueryOptions 供页面查询和启动预取共享每小时统计定义。
 export const statsHourlyQueryOptions = queryOptions({
     queryKey: ['stats', 'hourly'],
@@ -52,4 +58,10 @@ export const statsHourlyQueryOptions = queryOptions({
 export const statsTotalQueryOptions = queryOptions({
     queryKey: ['stats', 'total'],
     queryFn: () => apiRequest<StatsTotal>('/api/v1/stats/total'),
+});
+
+// statsSummaryQueryOptions 按周期提供首页统一汇总数据。
+export const statsSummaryQueryOptions = (period: '1' | '7' | '30' | 'all') => queryOptions({
+    queryKey: ['stats', 'summary', period],
+    queryFn: () => apiRequest<StatsSummary>(`/api/v1/stats/summary?period=${period}`),
 });

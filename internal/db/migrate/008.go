@@ -176,7 +176,7 @@ func migrateChannelModels(db *gorm.DB) error {
 
 // migrateLegacyChannelStats 将旧渠道统计原值迁移到 channels 的内嵌统计字段。
 func migrateLegacyChannelStats(db *gorm.DB) error {
-	for _, field := range []string{"InputToken", "OutputToken", "InputCost", "OutputCost", "WaitTime", "RequestSuccess", "RequestFailed"} {
+	for _, field := range []string{"InputToken", "OutputToken", "CacheReadToken", "CacheWriteToken", "InputCost", "OutputCost", "WaitTime", "RequestSuccess", "RequestFailed"} {
 		if db.Migrator().HasColumn(&model.Channel{}, field) {
 			continue
 		}
@@ -189,8 +189,14 @@ func migrateLegacyChannelStats(db *gorm.DB) error {
 	}
 
 	type legacyChannelStats struct {
-		ChannelID int `gorm:"column:channel_id"` // 所属渠道主键。
-		model.StatsMetrics
+		ChannelID      int     `gorm:"column:channel_id"` // 所属渠道主键。
+		InputToken     int64   `gorm:"column:input_token"`
+		OutputToken    int64   `gorm:"column:output_token"`
+		InputCost      float64 `gorm:"column:input_cost"`
+		OutputCost     float64 `gorm:"column:output_cost"`
+		WaitTime       int64   `gorm:"column:wait_time"`
+		RequestSuccess int64   `gorm:"column:request_success"`
+		RequestFailed  int64   `gorm:"column:request_failed"`
 	}
 	stats := make([]legacyChannelStats, 0)
 	if err := db.Table("stats_channels").Order("channel_id ASC").Find(&stats).Error; err != nil {

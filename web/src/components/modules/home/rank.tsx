@@ -5,7 +5,7 @@ import { TrendingUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 import { useHomeViewStore, type RankScope, type RankSortMode } from '@/components/modules/home/store';
-import type { StatsMetricsFormatted } from '@/api/stats';
+import { formatCacheHitRate, type StatsMetricsFormatted } from '@/api/stats';
 
 interface RankData {
     id: string;
@@ -38,6 +38,9 @@ export function Rank() {
             formatted: {
                 input_token: formatCount(model.input_token),
                 output_token: formatCount(model.output_token),
+                cache_read_token: formatCount(model.cache_read_token),
+                cache_write_token: formatCount(model.cache_write_token),
+                cache_hit_rate: formatCacheHitRate(model.input_token, model.cache_read_token),
                 total_token: formatCount(model.input_token + model.output_token),
                 input_cost: formatMoney(model.input_cost),
                 output_cost: formatMoney(model.output_cost),

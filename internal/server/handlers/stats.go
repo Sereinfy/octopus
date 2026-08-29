@@ -13,13 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var activityMaxRequestCount int64 // 最近 54 周每日请求量的最大值。
+var activityMaxRequestCount int64     // 最近 54 周每日请求量的最大值。
 var activityMaxCalculatedAt time.Time // 最大值上次计算时间。
-var activityMaxMu sync.Mutex // 保护最大值及计算时间的并发更新。
+var activityMaxMu sync.Mutex          // 保护最大值及计算时间的并发更新。
 
 type statsDailyResponse struct {
-	MaxRequestCount int64             `json:"max_request_count"` // 最近 54 周每日请求量的最大值。
-	Items           []model.StatsDaily `json:"items"` // 每日原始统计数据。
+	MaxRequestCount int64              `json:"max_request_count"` // 最近 54 周每日请求量的最大值。
+	Items           []model.StatsDaily `json:"items"`             // 每日原始统计数据。
 }
 
 func init() {
@@ -40,6 +40,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/total", http.MethodGet).
 				Handle(getStatsTotal),
+		).
+		AddRoute(
+			router.NewRoute("/summary", http.MethodGet).
+				Handle(getStatsSummary),
 		).
 		AddRoute(
 			router.NewRoute("/apikey", http.MethodGet).
@@ -90,6 +94,21 @@ func getStatsHourly(c *gin.Context) {
 
 func getStatsTotal(c *gin.Context) {
 	resp.Success(c, op.StatsTotalGet())
+}
+
+func getStatsSummary(c *gin.Context) {
+	period := c.DefaultQuery("period", "7")
+	if period != "1" && period != "7" && period != "30" && period != "all" {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
+		return
+	}
+
+	summary, err := op.StatsSummaryGet(c.Request.Context(), period)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp.Success(c, summary)
 }
 
 func getStatsAPIKey(c *gin.Context) {

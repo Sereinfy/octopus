@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -157,7 +158,7 @@ func persistStatsSnapshots(
 		}
 		if result := dbConn.Model(&model.Channel{}).
 			Where("id = ?", channel.ID).
-			Select("input_token", "output_token", "input_cost", "output_cost", "wait_time", "request_success", "request_failed").
+			Select("input_token", "output_token", "cache_read_token", "cache_write_token", "input_cost", "output_cost", "wait_time", "request_success", "request_failed").
 			Updates(&channel); result.Error != nil {
 			return result.Error
 		}
@@ -170,7 +171,7 @@ func persistStatsSnapshots(
 		}
 		if result := dbConn.Model(&model.ChannelModel{}).
 			Where("id = ?", m.ID).
-			Select("input_token", "output_token", "input_cost", "output_cost", "wait_time", "request_success", "request_failed").
+			Select("input_token", "output_token", "cache_read_token", "cache_write_token", "input_cost", "output_cost", "wait_time", "request_success", "request_failed").
 			Updates(&m); result.Error != nil {
 			return result.Error
 		}
@@ -403,6 +404,70 @@ func StatsGetDaily(ctx context.Context) ([]model.StatsDaily, error) {
 		return nil, result.Error
 	}
 	return statsDaily, nil
+}
+
+// StatsSummaryGet 聚合首页汇总所需的数据，并将今日内存统计覆盖到每日快照。
+func StatsSummaryGet(ctx context.Context, period string) (model.StatsSummary, error) {
+	if period != "1" && period != "7" && period != "30" && period != "all" {
+		return model.StatsSummary{}, fmt.Errorf("invalid stats summary period: %s", period)
+	}
+
+	if period == "1" {
+		hourly := StatsHourlyGet()
+		var metrics model.StatsMetrics
+		points := make([]model.StatsSummaryPoint, 0, len(hourly))
+		for _, stat := range hourly {
+			metrics.Add(stat.StatsMetrics)
+			points = append(points, model.StatsSummaryPoint{
+				Date:      fmt.Sprintf("%d:00", stat.Hour),
+				TotalCost: stat.InputCost + stat.OutputCost,
+			})
+		}
+		return model.StatsSummary{Period: period, StatsMetrics: metrics, Points: points}, nil
+	}
+
+	daily, err := StatsGetDaily(ctx)
+	if err != nil {
+		return model.StatsSummary{}, err
+	}
+	// Replace the persisted row for today, or append it when the first save has not happened yet.
+	today := StatsTodayGet()
+	foundToday := false
+	for i := range daily {
+		if daily[i].Date == today.Date {
+			daily[i] = today
+			foundToday = true
+			break
+		}
+	}
+	if today.Date != "" && !foundToday {
+		daily = append(daily, today)
+	}
+	sort.Slice(daily, func(i, j int) bool { return daily[i].Date < daily[j].Date })
+
+	if period != "all" {
+		days := 7
+		if period == "30" {
+			days = 30
+		}
+		if len(daily) > days {
+			daily = daily[len(daily)-days:]
+		}
+	}
+
+	var metrics model.StatsMetrics
+	points := make([]model.StatsSummaryPoint, 0, len(daily))
+	for _, stat := range daily {
+		metrics.Add(stat.StatsMetrics)
+		points = append(points, model.StatsSummaryPoint{
+			Date:      stat.Date,
+			TotalCost: stat.InputCost + stat.OutputCost,
+		})
+	}
+	if period == "all" {
+		metrics = StatsTotalGet().StatsMetrics
+	}
+	return model.StatsSummary{Period: period, StatsMetrics: metrics, Points: points}, nil
 }
 
 func statsRefreshCache(ctx context.Context) error {

@@ -323,6 +323,10 @@ func usageMetrics(modelName string, usage *llm.Usage) model.StatsMetrics {
 		return model.StatsMetrics{}
 	}
 	metrics := model.StatsMetrics{InputToken: usage.PromptTokens, OutputToken: usage.CompletionTokens}
+	if usage.PromptTokensDetails != nil {
+		metrics.CacheReadToken = usage.PromptTokensDetails.CachedTokens
+		metrics.CacheWriteToken = usage.PromptTokensDetails.WriteCachedTokens
+	}
 	price, err := op.LLMGet(modelName)
 	if err != nil {
 		return metrics

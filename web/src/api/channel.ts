@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/r
 import { apiRequest } from './client';
 import { channelListQueryOptions, groupListQueryOptions, modelListQueryOptions } from './queries';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
-import type { StatsMetrics, StatsMetricsFormatted } from './stats';
+import { formatCacheHitRate, type StatsMetrics, type StatsMetricsFormatted } from './stats';
 /**
  * 渠道类型枚举
  */
@@ -145,6 +145,9 @@ const channelListFormattedQueryOptions = queryOptions({
             formatted: {
                 input_token: formatCount(item.input_token),
                 output_token: formatCount(item.output_token),
+                cache_read_token: formatCount(item.cache_read_token),
+                cache_write_token: formatCount(item.cache_write_token),
+                cache_hit_rate: formatCacheHitRate(item.input_token, item.cache_read_token),
                 total_token: formatCount(item.input_token + item.output_token),
                 input_cost: formatMoney(item.input_cost),
                 output_cost: formatMoney(item.output_cost),

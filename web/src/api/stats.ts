@@ -1,6 +1,6 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { apiRequest } from './client';
-import { statsDailyQueryOptions, statsHourlyQueryOptions, statsTotalQueryOptions } from './queries';
+import { statsDailyQueryOptions, statsHourlyQueryOptions, statsSummaryQueryOptions, statsTodayQueryOptions, statsTotalQueryOptions } from './queries';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 
 /**
@@ -9,6 +9,8 @@ import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 export interface StatsMetrics {
     input_token: number;
     output_token: number;
+    cache_read_token: number;
+    cache_write_token: number;
     input_cost: number;
     output_cost: number;
     wait_time: number;
@@ -19,6 +21,9 @@ export interface StatsMetrics {
 export interface StatsMetricsFormatted {
     input_token: ReturnType<typeof formatCount>;
     output_token: ReturnType<typeof formatCount>;
+    cache_read_token: ReturnType<typeof formatCount>;
+    cache_write_token: ReturnType<typeof formatCount>;
+    cache_hit_rate: ReturnType<typeof formatPercentage>;
     input_cost: ReturnType<typeof formatMoney>;
     output_cost: ReturnType<typeof formatMoney>;
     wait_time: ReturnType<typeof formatTime>;
@@ -40,6 +45,18 @@ export interface StatsDailyResponse {
 export interface StatsDailyFormatted extends StatsMetricsFormatted {
     date: string;
 }
+
+export function formatPercentage(value: number | undefined) {
+    const raw = value ?? 0;
+    return { raw, formatted: { value: `${raw.toFixed(1)}%`, unit: '' } };
+}
+
+export function formatCacheHitRate(inputToken: number | undefined, cacheReadToken: number | undefined) {
+    const input = Math.max(0, inputToken ?? 0);
+    const cached = Math.max(0, cacheReadToken ?? 0);
+    const rate = input + cached > 0 ? (cached / (input + cached)) * 100 : 0;
+    return formatPercentage(rate);
+}
 interface StatsDailyFormattedResponse {
     max_request_count: number;
     items: StatsDailyFormatted[];
@@ -50,6 +67,21 @@ export interface StatsTotal extends StatsMetrics {
 }
 type StatsTotalFormatted = StatsMetricsFormatted;
 
+export interface StatsSummaryPoint {
+    date: string;
+    total_cost: number;
+}
+
+export interface StatsSummary extends StatsMetrics {
+    period: '1' | '7' | '30' | 'all';
+    points: StatsSummaryPoint[];
+}
+
+export interface StatsSummaryFormatted extends StatsMetricsFormatted {
+    period: StatsSummary['period'];
+    points: StatsSummaryPoint[];
+}
+
 export interface StatsHourly extends StatsMetrics {
     hour: number;
     date: string;
@@ -58,6 +90,23 @@ interface StatsHourlyFormatted extends StatsMetricsFormatted {
     hour: number;
     date: string;
 }
+
+const formatStatsDaily = (item: StatsDaily): StatsDailyFormatted => ({
+    input_token: formatCount(item.input_token),
+    output_token: formatCount(item.output_token),
+    cache_read_token: formatCount(item.cache_read_token),
+    cache_write_token: formatCount(item.cache_write_token),
+    cache_hit_rate: formatCacheHitRate(item.input_token, item.cache_read_token),
+    total_token: formatCount(item.input_token + item.output_token),
+    input_cost: formatMoney(item.input_cost),
+    output_cost: formatMoney(item.output_cost),
+    total_cost: formatMoney(item.input_cost + item.output_cost),
+    wait_time: formatTime(item.wait_time),
+    request_success: formatCount(item.request_success),
+    request_failed: formatCount(item.request_failed),
+    request_count: formatCount(item.request_success + item.request_failed),
+    date: item.date,
+});
 /**
  * API Key 统计数据
  */
@@ -74,19 +123,7 @@ const statsDailyFormattedQueryOptions = queryOptions({
     ...statsDailyQueryOptions,
     select: (data): StatsDailyFormattedResponse => ({
         max_request_count: data.max_request_count,
-        items: data.items.map((item): StatsDailyFormatted => ({
-            input_token: formatCount(item.input_token),
-            output_token: formatCount(item.output_token),
-            total_token: formatCount(item.input_token + item.output_token),
-            input_cost: formatMoney(item.input_cost),
-            output_cost: formatMoney(item.output_cost),
-            total_cost: formatMoney(item.input_cost + item.output_cost),
-            wait_time: formatTime(item.wait_time),
-            request_success: formatCount(item.request_success),
-            request_failed: formatCount(item.request_failed),
-            request_count: formatCount(item.request_success + item.request_failed),
-            date: item.date,
-        })),
+        items: data.items.map(formatStatsDaily),
     }),
     refetchInterval: 3600000, // 1 小时
     refetchOnMount: 'always',
@@ -104,6 +141,18 @@ export function useStatsDaily() {
     };
 }
 
+// statsTodayFormattedQueryOptions 保留今日内存聚合，避免每日数据库快照出现短暂滞后。
+const statsTodayFormattedQueryOptions = queryOptions({
+    ...statsTodayQueryOptions,
+    select: formatStatsDaily,
+    refetchInterval: 10000,
+    refetchOnMount: 'always',
+});
+
+export function useStatsToday() {
+    return useQuery(statsTodayFormattedQueryOptions);
+}
+
 // statsHourlyFormattedQueryOptions 统一首页每小时统计查询、格式化和刷新策略。
 const statsHourlyFormattedQueryOptions = queryOptions({
     ...statsHourlyQueryOptions,
@@ -112,6 +161,9 @@ const statsHourlyFormattedQueryOptions = queryOptions({
         date: item.date,
         input_token: formatCount(item.input_token),
         output_token: formatCount(item.output_token),
+        cache_read_token: formatCount(item.cache_read_token),
+        cache_write_token: formatCount(item.cache_write_token),
+        cache_hit_rate: formatCacheHitRate(item.input_token, item.cache_read_token),
         total_token: formatCount(item.input_token + item.output_token),
         input_cost: formatMoney(item.input_cost),
         output_cost: formatMoney(item.output_cost),
@@ -138,6 +190,9 @@ const statsTotalFormattedQueryOptions = queryOptions({
     select: (data): StatsTotalFormatted => ({
         input_token: formatCount(data.input_token),
         output_token: formatCount(data.output_token),
+        cache_read_token: formatCount(data.cache_read_token),
+        cache_write_token: formatCount(data.cache_write_token),
+        cache_hit_rate: formatCacheHitRate(data.input_token, data.cache_read_token),
         total_token: formatCount(data.input_token + data.output_token),
         input_cost: formatMoney(data.input_cost),
         output_cost: formatMoney(data.output_cost),
@@ -158,6 +213,31 @@ export function useStatsTotal() {
     return useQuery(statsTotalFormattedQueryOptions);
 }
 
+export function useStatsSummary(period: StatsSummary['period']) {
+    return useQuery({
+        ...statsSummaryQueryOptions(period),
+        select: (data): StatsSummaryFormatted => ({
+            input_token: formatCount(data.input_token),
+            output_token: formatCount(data.output_token),
+            cache_read_token: formatCount(data.cache_read_token),
+            cache_write_token: formatCount(data.cache_write_token),
+            cache_hit_rate: formatCacheHitRate(data.input_token, data.cache_read_token),
+            total_token: formatCount(data.input_token + data.output_token),
+            input_cost: formatMoney(data.input_cost),
+            output_cost: formatMoney(data.output_cost),
+            total_cost: formatMoney(data.input_cost + data.output_cost),
+            wait_time: formatTime(data.wait_time),
+            request_success: formatCount(data.request_success),
+            request_failed: formatCount(data.request_failed),
+            request_count: formatCount(data.request_success + data.request_failed),
+            period: data.period,
+            points: data.points,
+        }),
+        refetchInterval: 10000,
+        refetchOnMount: 'always',
+    });
+}
+
 
 
 /**
@@ -171,6 +251,9 @@ export function useStatsAPIKey() {
             api_key_id: item.api_key_id,
             input_token: formatCount(item.input_token),
             output_token: formatCount(item.output_token),
+            cache_read_token: formatCount(item.cache_read_token),
+            cache_write_token: formatCount(item.cache_write_token),
+            cache_hit_rate: formatCacheHitRate(item.input_token, item.cache_read_token),
             total_token: formatCount(item.input_token + item.output_token),
             input_cost: formatMoney(item.input_cost),
             output_cost: formatMoney(item.output_cost),

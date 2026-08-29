@@ -4,6 +4,7 @@ import {
     CheckCircle2,
     Clock,
     Copy,
+    Database,
     DollarSign,
     Download,
     Eye,
@@ -17,7 +18,7 @@ import { snapdom } from '@zumer/snapdom';
 import { toast } from 'sonner';
 import { useTranslations } from 'use-intl';
 import { type Channel } from '@/api/channel';
-import { type StatsMetricsFormatted } from '@/api/stats';
+import { formatCacheHitRate, type StatsMetricsFormatted } from '@/api/stats';
 import { formatCount, formatMoney } from '@/lib/utils';
 
 type FormattedMetric = StatsMetricsFormatted['request_count'];
@@ -87,6 +88,14 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
             ),
         },
         {
+            icon: <Database className="size-3.5 text-cyan-500" />,
+            label: t('cacheHitRate'),
+            value: <MetricValue metric={stats.cache_hit_rate} />,
+            sub: (
+                <span>{t('cacheHits')}: {stats.cache_read_token.formatted.value}{stats.cache_read_token.formatted.unit}</span>
+            ),
+        },
+        {
             icon: <DollarSign className="size-3.5 text-chart-5" />,
             label: t('totalCost'),
             value: <MetricValue metric={stats.total_cost} />,
@@ -115,6 +124,7 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
                 name: model.name,
                 weight: modelSort === 'cost' ? cost : modelSort === 'tokens' ? tokens : count,
                 rate: successRate(model.request_success, model.request_failed),
+                cacheRate: formatCacheHitRate(model.input_token, model.cache_read_token),
                 count: formatCount(count),
                 tokens: formatCount(tokens),
                 cost: formatMoney(cost),
@@ -275,7 +285,7 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums @md/stats:w-64 @md/stats:grid-cols-4 @md/stats:gap-x-2">
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums @md/stats:w-72 @md/stats:grid-cols-5 @md/stats:gap-x-2">
                                         <div className="flex items-center gap-1">
                                             <MessageSquare className="size-3.5 shrink-0 text-chart-1" />
                                             <MetricValue metric={model.count} />
@@ -283,6 +293,10 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
                                         <div className="flex items-center gap-1">
                                             <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
                                             <span>{model.rate.toFixed(0)}%</span>
+                                        </div>
+                                        <div className="flex items-center gap-1" title={t('cacheHitRate')}>
+                                            <Database className="size-3.5 shrink-0 text-cyan-500" />
+                                            <span>{model.cacheRate.formatted.value}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <FileText className="size-3.5 shrink-0 text-chart-3" />

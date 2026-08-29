@@ -1,4 +1,4 @@
-import { useStatsDaily, type StatsDailyFormatted } from '@/api/stats';
+import { useStatsDaily, useStatsToday, type StatsDailyFormatted } from '@/api/stats';
 import { Fragment, useMemo, useRef, useLayoutEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'use-intl';
@@ -12,14 +12,17 @@ interface StatsDailyData {
 
 export function Activity() {
     const { data: statsDailyFormatted, maxRequestCount, isLoading } = useStatsDaily();
+    const { data: statsToday } = useStatsToday();
     const scrollRef = useRef<HTMLDivElement>(null);
     const t = useTranslations('home.activity');
+    const effectiveMaxRequestCount = Math.max(maxRequestCount, statsToday?.request_count.raw ?? 0);
 
     const [tooltip, setTooltip] = useState<{ day: StatsDailyData; x: number; y: number; visible: boolean } | null>(null);
 
     const days = useMemo(() => {
         if (!statsDailyFormatted) return [];
         const formattedMap = new Map(statsDailyFormatted.map(stat => [stat.date, stat]));
+        if (statsToday) formattedMap.set(statsToday.date, statsToday);
 
         const today = dayjs();
         const startDate = today.subtract(today.day() + 53 * 7, 'day');
@@ -38,7 +41,7 @@ export function Activity() {
         }
 
         return result;
-    }, [statsDailyFormatted]);
+    }, [statsDailyFormatted, statsToday]);
 
     const [maskImage, setMaskImage] = useState('none');
 
@@ -93,8 +96,8 @@ export function Activity() {
                             }
 
                             const requestCount = day.formatted?.request_count.raw ?? 0;
-                            const level = maxRequestCount > 0
-                                ? Math.min(4, Math.ceil(requestCount * 4 / maxRequestCount))
+                            const level = effectiveMaxRequestCount > 0
+                                ? Math.min(4, Math.ceil(requestCount * 4 / effectiveMaxRequestCount))
                                 : 0;
 
                             return (
