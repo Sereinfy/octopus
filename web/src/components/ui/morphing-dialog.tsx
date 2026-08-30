@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { XIcon } from 'lucide-react';
 import useClickOutside from '@/hooks/useClickOutside';
 
+const PORTAL_IGNORED_SLOTS = ['select-content', 'popover-content', 'dialog-content', 'dialog-overlay'] as const;
+
 export type MorphingDialogContextType = {
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -167,6 +169,9 @@ function MorphingDialogContent({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (PORTAL_IGNORED_SLOTS.some((slot) => document.querySelector(`[data-slot="${slot}"]`))) {
+          return;
+        }
         setIsOpen(false);
       }
       if (event.key === 'Tab') {
@@ -219,19 +224,11 @@ function MorphingDialogContent({
     },
     (event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-slot="select-content"]')) {
-        return true;
-      }
-      const openSelectContent = document.querySelector('[data-slot="select-content"]');
-      if (openSelectContent) {
-        return true;
-      }
-      if (target?.closest('[data-slot="popover-content"]')) {
-        return true;
-      }
-      const openPopoverContent = document.querySelector('[data-slot="popover-content"]');
-      if (openPopoverContent) {
-        return true;
+      for (const slot of PORTAL_IGNORED_SLOTS) {
+        const selector = `[data-slot="${slot}"]`;
+        if (target?.closest(selector) || document.querySelector(selector)) {
+          return true;
+        }
       }
       return false;
     }
