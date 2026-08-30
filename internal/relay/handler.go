@@ -65,9 +65,10 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			return
 		}
 
+		ctx, cancelRequest := context.WithCancel(c.Request.Context())
+		defer cancelRequest()
 		// 登记进程内请求状态, 返回的记录是后续全部状态写入和前端可视化推送的入口。
-		request := newRequestState(metadataModel, requestBodyForLog(format, raw), c.GetInt("api_key_id"))
-		ctx := c.Request.Context()
+		request := newRequestState(metadataModel, requestBodyForLog(format, raw), c.GetInt("api_key_id"), cancelRequest)
 		failedItemID := 0 // 当前累计连续失败次数的成员 ID。
 		failures := 0     // 该成员包含首次请求的连续失败次数。
 
@@ -238,6 +239,10 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				cancelRound()
 				if c.Writer.Header().Get("Content-Type") == "" {
 					c.Header("Content-Type", "application/json")
+				}
+				if ctx.Err() != nil {
+					request.markCanceled(ctx.Err(), responseBodyForLogStatus(format, result.body, false), result.usage)
+					return
 				}
 				// 非流式响应已有完整用量, 本轮渠道和成员统计可在提交前一次完成。
 				metrics := pricedMetricsForRound(channel, channelModel.Name, result.usage, parsed.Image, imageAttemptBillableResult)

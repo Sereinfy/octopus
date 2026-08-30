@@ -5,7 +5,7 @@ import JsonView from '@uiw/react-json-view';
 import { githubDarkTheme } from '@uiw/react-json-view/githubDark';
 import { githubLightTheme } from '@uiw/react-json-view/githubLight';
 import { useTheme } from '@/provider/theme';
-import { type RelayLogOverview, useLogRequestBody, useLogResponseBody, useStopRound } from '@/api/log';
+import { type RelayLogOverview, useLogRequestBody, useLogResponseBody, useStopRequest, useStopRound } from '@/api/log';
 import { useGroupList, useUpdateGroupActiveItem } from '@/api/group';
 import { useChannelList } from '@/api/channel';
 import { getModelIcon } from '@/lib/model-icons';
@@ -136,6 +136,7 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
     const { data: groups = [] } = useGroupList(detailReady, detailReady);
     const { data: channels = [] } = useChannelList(detailReady);
     const updateActiveItem = useUpdateGroupActiveItem();
+    const stopRequest = useStopRequest();
     const stopRound = useStopRound();
     const channelNameByModelID = useMemo(() => {
         const map = new Map<number, string>();
@@ -149,6 +150,7 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
     const errorText = log.error ?? '';
     const rounds = log.rounds ?? [];
     const requestFailed = log.status === 'failed' || log.status === 'canceled';
+    const requestRunning = log.status === 'running' || log.status === 'committed';
     const responseCommitted = log.status === 'committed';
     const showRounds = log.status === 'running' || rounds.length > 1 || (requestFailed && rounds.length > 0);
     const activeGroup = groups.find((group) => group.name === log.model);
@@ -162,7 +164,27 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
 
     return (
         <MorphingDialogContent className="relative w-[calc(100vw-2rem)] md:w-[80vw] bg-card text-card-foreground px-6 py-4 rounded-3xl h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
-            <MorphingDialogClose className="top-4 right-5 text-muted-foreground hover:text-foreground transition-colors" />
+            <div className="absolute top-4 right-5 z-10 flex items-center gap-2">
+                {requestRunning && (
+                    <button
+                        type="button"
+                        aria-label={t('stopRequest')}
+                        disabled={stopRequest.isPending}
+                        onClick={async () => {
+                            try {
+                                await stopRequest.mutateAsync({ requestId: log.id });
+                            } catch (cause) {
+                                toast.error(t('stopRequestFailed'), { description: cause instanceof Error ? cause.message : undefined });
+                            }
+                        }}
+                        className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                    >
+                        {stopRequest.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
+                        {t('stopRequest')}
+                    </button>
+                )}
+                <MorphingDialogClose className="relative top-0 right-0 text-muted-foreground hover:text-foreground transition-colors" />
+            </div>
             <MorphingDialogTitle className="flex items-center gap-2 mb-3 text-sm">
                 <Icon aria-hidden="true" className={iconClassName} width={28} height={28} />
                 <span className="font-semibold text-card-foreground">{log.model || t('unknownModel')}</span>
@@ -286,23 +308,7 @@ function LogDetail({ log, now }: { log: RelayLogOverview; now: number }) {
                             <span className="text-sm font-medium text-card-foreground">
                                 {isWaitingForSelection ? t('waitingChannelSelection') : showRounds ? t('retryDetails') : requestFailed ? t('errorInfo') : t('responseContent')}
                             </span>
-                            {log.status === 'running' && log.sending && activeGroup?.mode === 'manual' ? (
-                                <button
-                                    type="button"
-                                    disabled={stopRound.isPending}
-                                    onClick={async () => {
-                                        try {
-                                            await stopRound.mutateAsync({ requestId: log.id, round: log.round });
-                                        } catch (cause) {
-                                            toast.error(t('stopFailed'), { description: cause instanceof Error ? cause.message : undefined });
-                                        }
-                                    }}
-                                    className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                                >
-                                    {stopRound.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
-                                    {t('stopRound')}
-                                </button>
-                            ) : !requestFailed && (
+                            {!requestFailed && (
                                 <Badge variant="secondary" className="ml-auto text-xs">
                                     {responseCommitted
                                         ? statusT('committed')

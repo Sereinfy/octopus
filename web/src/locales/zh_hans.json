@@ -492,6 +492,8 @@
             "retryDetails": "重试详情",
             "stopRound": "停止当前轮次",
             "stopFailed": "停止当前轮次失败",
+            "stopRequest": "停止请求",
+            "stopRequestFailed": "停止请求失败",
             "waitingChannelSelection": "正在等待选择渠道",
             "waitingResponse": "正在等待上游响应",
             "responseStreaming": "上游已响应，流式传输正在进行"

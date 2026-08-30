@@ -73,6 +73,14 @@ export function useStopRound() {
     });
 }
 
+// useStopRequest 取消整个 Relay 请求, 包括当前轮次和后续重试。
+export function useStopRequest() {
+    return useMutation({
+        mutationFn: ({ requestId }: { requestId: number }) =>
+            apiRequest<null>(`/api/v1/log/${requestId}/cancel`, { method: 'POST' }),
+    });
+}
+
 // useLogs 订阅进程内日志概览，并按 RequestID 更新同一条记录。
 export function useLogs() {
     const paused = useLogViewStore((state) => state.paused);

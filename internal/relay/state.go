@@ -59,6 +59,7 @@ type RequestState struct {
 	apiKeyID          int                    // 发起请求的 API Key ID, 用于请求完成后的归属统计。
 	channelStats      []op.ChannelStatsDelta // 本请求各上游轮次的渠道和模型统计增量。
 	cancel            context.CancelFunc     // 中止最新一轮上游请求, 仅在该轮等待响应期间非空。
+	cancelRequest     context.CancelFunc     // 中止整个 Relay 请求, 包括轮次切换和重试退避等待。
 	appliedMultiplier float64                // 本次请求实际采用的对话倍率。
 	imageCost         float64                // 已按生图请求次数累计的固定费用。
 }
@@ -74,7 +75,7 @@ var (
 )
 
 // newRequestState 分配请求 ID 并登记初始运行状态; 返回的记录是本请求后续全部状态写入的入口。
-func newRequestState(model, body string, apiKeyID int) *RequestState {
+func newRequestState(model, body string, apiKeyID int, cancelRequest context.CancelFunc) *RequestState {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -85,6 +86,7 @@ func newRequestState(model, body string, apiKeyID int) *RequestState {
 		Model:             model,
 		body:              body,
 		apiKeyID:          apiKeyID,
+		cancelRequest:     cancelRequest,
 		appliedMultiplier: 1,
 	}
 	requests[request.ID] = request
@@ -206,7 +208,7 @@ func (r *RequestState) updateRoundLocked(status Status, sending bool, errText st
 	}
 }
 
-// Interrupt 中止指定请求仍在等待响应且轮次匹配的上游请求; 轮次不匹配说明该轮已结束, 不影响后续轮次。
+// Interrupt 中止指定请求的当前轮次; 轮次不匹配说明该轮已结束, 不影响后续轮次。
 func Interrupt(id uint64, round int) {
 	mu.Lock()
 	request := requests[id]
@@ -215,6 +217,24 @@ func Interrupt(id uint64, round int) {
 		return
 	}
 	cancel := request.cancel
+	request.cancel = nil
+	mu.Unlock()
+
+	cancel()
+}
+
+// CancelRequest 中止整个 Relay 请求, 包括当前轮次、轮次切换和重试退避等待。
+func CancelRequest(id uint64) {
+	mu.Lock()
+	request := requests[id]
+	if request == nil ||
+		(request.Status != StatusRunning && request.Status != StatusCommitted) ||
+		request.cancelRequest == nil {
+		mu.Unlock()
+		return
+	}
+	cancel := request.cancelRequest
+	request.cancelRequest = nil
 	request.cancel = nil
 	mu.Unlock()
 
@@ -286,6 +306,7 @@ func (r *RequestState) markCanceled(err error, responseBody string, usage *llm.U
 func (r *RequestState) finishLocked(usage *llm.Usage) {
 	r.Sending = false
 	r.cancel = nil
+	r.cancelRequest = nil
 	if usage != nil {
 		r.Usage = *usage
 	}

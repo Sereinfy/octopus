@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/looplj/axonhub/llm"
 )
@@ -33,6 +35,39 @@ func TestRequestStateRoundHistoryRecordsFinalFailure(t *testing.T) {
 
 	if len(request.Rounds) != 1 || request.Rounds[0].Status != StatusFailed || request.Rounds[0].Error != "final failure" {
 		t.Fatalf("round history = %+v, want one failed round", request.Rounds)
+	}
+}
+
+func TestCancelRequestStopsRetryWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	request := newRequestState("test-model", "{}", 0, cancel)
+	defer func() {
+		mu.Lock()
+		delete(requests, request.ID)
+		mu.Unlock()
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- request.wait(ctx, 60)
+	}()
+
+	CancelRequest(request.ID)
+
+	select {
+	case waited := <-done:
+		if waited {
+			t.Fatal("request wait continued after cancellation")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("request wait did not stop after cancellation")
+	}
+
+	mu.Lock()
+	status := request.Status
+	mu.Unlock()
+	if status != StatusCanceled {
+		t.Fatalf("request status = %q, want %q", status, StatusCanceled)
 	}
 }
 

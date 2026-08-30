@@ -34,6 +34,10 @@ func init() {
 				Handle(interruptRound),
 		).
 		AddRoute(
+			router.NewRoute("/:request_id/cancel", http.MethodPost).
+				Handle(cancelRequest),
+		).
+		AddRoute(
 			router.NewRoute("/clear", http.MethodDelete).
 				Handle(clearLog),
 		)
@@ -41,18 +45,37 @@ func init() {
 
 // interruptRound 中止请求当前轮次匹配的上游调用。
 func interruptRound(c *gin.Context) {
+	requestID, round, ok := parseInterruptParams(c, 1)
+	if !ok {
+		return
+	}
+	relay.Interrupt(requestID, round)
+	c.Status(http.StatusNoContent)
+}
+
+// cancelRequest 取消整个 Relay 请求, 包括正在等待的重试和故障转移。
+func cancelRequest(c *gin.Context) {
 	requestID, err := strconv.ParseUint(c.Param("request_id"), 10, 64)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, "invalid request id")
 		return
 	}
-	round, err := strconv.Atoi(c.Param("round"))
-	if err != nil || round < 1 {
-		resp.Error(c, http.StatusBadRequest, "invalid round")
-		return
-	}
-	relay.Interrupt(requestID, round)
+	relay.CancelRequest(requestID)
 	c.Status(http.StatusNoContent)
+}
+
+func parseInterruptParams(c *gin.Context, minimumRound int) (uint64, int, bool) {
+	requestID, err := strconv.ParseUint(c.Param("request_id"), 10, 64)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, "invalid request id")
+		return 0, 0, false
+	}
+	round, err := strconv.Atoi(c.Param("round"))
+	if err != nil || round < minimumRound {
+		resp.Error(c, http.StatusBadRequest, "invalid round")
+		return 0, 0, false
+	}
+	return requestID, round, true
 }
 
 // clearLog 删除全部已完成的请求记录，并在释放记录引用后主动执行垃圾回收。
