@@ -68,7 +68,7 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
             value: <MetricValue metric={stats.request_count} />,
             sub: (
                 <>
-                    <span className="text-accent">{stats.request_success.formatted.value}</span>
+                    <span className="text-primary">{stats.request_success.formatted.value}</span>
                     <span className="text-muted-foreground/40">/</span>
                     <span className="text-destructive">{stats.request_failed.formatted.value}</span>
                     <span className="text-muted-foreground/40">·</span>
@@ -295,7 +295,7 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
                                             <MetricValue metric={model.count} />
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
+                                            <CheckCircle2 className="size-3.5 shrink-0 text-primary" />
                                             <span>{model.rate.toFixed(0)}%</span>
                                         </div>
                                         <div className="flex items-center gap-1" title={t('cacheHitRate')}>

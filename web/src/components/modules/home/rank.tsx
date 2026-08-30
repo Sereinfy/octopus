@@ -78,7 +78,7 @@ function RankCard({ title, items, sortMode, onSortModeChange, hideChannelName }:
                             <div className="flex items-center gap-1 text-right">
                                 {sortMode === 'count' ? (
                                     <div className="flex items-center gap-1 text-sm font-medium tabular-nums">
-                                        <span className="text-accent">
+                                        <span className="text-primary">
                                             {item.formatted.request_success.formatted.value}
                                             <span className="text-xs text-muted-foreground">{item.formatted.request_success.formatted.unit}</span>
                                         </span>
