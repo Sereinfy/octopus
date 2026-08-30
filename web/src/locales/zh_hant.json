@@ -126,7 +126,8 @@
             "sortByCount": "次數",
             "sortByTokens": "詞元",
             "noData": "暫無排行數據",
-            "successRate": "成功率"
+            "successRate": "成功率",
+            "cacheHitRate": "快取命中率"
         }
     },
     "setting": {

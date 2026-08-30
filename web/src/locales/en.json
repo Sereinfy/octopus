@@ -126,7 +126,8 @@
             "sortByCount": "Count",
             "sortByTokens": "Tokens",
             "noData": "No ranking data",
-            "successRate": "Success Rate"
+            "successRate": "Success Rate",
+            "cacheHitRate": "Cache Hit Rate"
         }
     },
     "setting": {

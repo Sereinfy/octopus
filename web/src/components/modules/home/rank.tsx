@@ -67,6 +67,12 @@ function RankCard({ title, items, sortMode, onSortModeChange, hideChannelName }:
                                         <span>{successRate.toFixed(1)}%</span>
                                     </div>
                                 )}
+                                {sortMode === 'tokens' && (
+                                    <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                                        <span>{t('cacheHitRate')}:</span>
+                                        <span>{item.formatted.cache_hit_rate.formatted.value}</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-1 text-right">
