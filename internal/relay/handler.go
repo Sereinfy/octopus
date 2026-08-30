@@ -205,8 +205,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				metrics := pricedMetricsForRound(channel, channelModel.Name, nil, parsed.Image, imageAttemptBillableResult)
 				metrics.WaitTime = time.Since(roundStartedAt).Milliseconds()
 				metrics.RequestFailed = 1
-				_ = op.ChannelStatsUpdate(channel.ID, metrics)
-				_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
+				request.recordChannelStats(channel.ID, channelModel.ID, metrics)
 
 				// 成员改变时重新开始累计该成员在本请求内的连续失败次数。
 				if failedItemID == item.ID {
@@ -244,8 +243,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				metrics := pricedMetricsForRound(channel, channelModel.Name, result.usage, parsed.Image, imageAttemptBillableResult)
 				metrics.WaitTime = roundWaitTime
 				metrics.RequestSuccess = 1
-				_ = op.ChannelStatsUpdate(channel.ID, metrics)
-				_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
+				request.recordChannelStats(channel.ID, channelModel.ID, metrics)
 				request.markCommitted()
 				n, err := c.Writer.Write(result.body)
 				if err == nil && n != len(result.body) {
@@ -321,8 +319,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			} else {
 				metrics.RequestFailed = 1
 			}
-			_ = op.ChannelStatsUpdate(channel.ID, metrics)
-			_ = op.ChannelModelStatsUpdate(channelModel.ID, metrics)
+			request.recordChannelStats(channel.ID, channelModel.ID, metrics)
 			if err != nil {
 				if ctx.Err() != nil {
 					request.markCanceled(ctx.Err(), responseBodyForLogStatus(format, responseBody, false), result.usage)

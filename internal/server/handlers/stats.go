@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -126,6 +128,10 @@ func getStatsSummary(c *gin.Context) {
 }
 
 func clearStats(c *gin.Context) {
+	if !sameOriginRequest(c.Request) {
+		resp.Error(c, http.StatusForbidden, "cross-site request blocked")
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 	if err := op.StatsClear(ctx); err != nil {
@@ -134,6 +140,26 @@ func clearStats(c *gin.Context) {
 	}
 	resetActivityMaxCache()
 	c.Status(http.StatusNoContent)
+}
+
+// sameOriginRequest protects cookie-authenticated destructive requests from
+// cross-site form/fetch submissions while retaining compatibility with API
+// clients that omit browser origin headers.
+func sameOriginRequest(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		if referer := strings.TrimSpace(r.Header.Get("Referer")); referer != "" {
+			origin = referer
+		}
+	}
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" || parsed.Host != r.Host {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 func getStatsAPIKey(c *gin.Context) {

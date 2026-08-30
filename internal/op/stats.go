@@ -40,6 +40,14 @@ var statsAPIKeyCacheNeedUpdateLock sync.Mutex
 // snapshot or replace/reset multiple statistic stores as one lifecycle event.
 var statsLifecycleMu sync.RWMutex
 
+// ChannelStatsDelta groups one upstream round's channel and model metrics so
+// the pair is committed under the same statistics lifecycle read lock.
+type ChannelStatsDelta struct {
+	ChannelID      int
+	ChannelModelID int
+	Metrics        model.StatsMetrics
+}
+
 func StatsSaveDBTask() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -241,10 +249,7 @@ func statsSaveDBWithDailyOverride(ctx context.Context, dailyOverride model.Stats
 	return nil
 }
 
-func StatsDailyUpdate(ctx context.Context, metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func statsDailyUpdateUnlocked(ctx context.Context, metrics model.StatsMetrics) error {
 	today := time.Now().Format("20060102")
 
 	statsDailyCacheLock.Lock()
@@ -262,23 +267,16 @@ func StatsDailyUpdate(ctx context.Context, metrics model.StatsMetrics) error {
 	return statsSaveDBWithDailyOverride(ctx, prevDaily)
 }
 
-func StatsTotalUpdate(metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func statsTotalUpdateUnlocked(metrics model.StatsMetrics) {
 	statsTotalCacheLock.Lock()
 	defer statsTotalCacheLock.Unlock()
 	if statsTotalCache.ID == 0 {
 		statsTotalCache.ID = 1
 	}
 	statsTotalCache.StatsMetrics.Add(metrics)
-	return nil
 }
 
-func StatsHourlyUpdate(metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func statsHourlyUpdateUnlocked(metrics model.StatsMetrics) {
 	now := time.Now()
 	nowHour := now.Hour()
 	todayDate := time.Now().Format("20060102")
@@ -294,47 +292,33 @@ func StatsHourlyUpdate(metrics model.StatsMetrics) error {
 	}
 
 	statsHourlyCache[nowHour].StatsMetrics.Add(metrics)
-	return nil
 }
 
-// ChannelStatsUpdate 累加渠道统计并标记对应渠道待持久化。
-func ChannelStatsUpdate(channelID int, metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func channelStatsUpdateUnlocked(channelID int, metrics model.StatsMetrics) {
 	channelStatsNeedUpdateLock.Lock()
 	defer channelStatsNeedUpdateLock.Unlock()
 	channel, ok := channelCache.Get(channelID)
 	if !ok {
-		return nil
+		return
 	}
 	channel.StatsMetrics.Add(metrics)
 	channelCache.Set(channelID, channel)
 	channelStatsNeedUpdate[channelID] = struct{}{}
-	return nil
 }
 
-// ChannelModelStatsUpdate 累加渠道模型统计并标记对应模型待持久化。
-func ChannelModelStatsUpdate(channelModelID int, metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func channelModelStatsUpdateUnlocked(channelModelID int, metrics model.StatsMetrics) {
 	channelModelStatsNeedUpdateLock.Lock()
 	defer channelModelStatsNeedUpdateLock.Unlock()
 	channelModel, ok := channelModelCache.Get(channelModelID)
 	if !ok {
-		return nil
+		return
 	}
 	channelModel.StatsMetrics.Add(metrics)
 	channelModelCache.Set(channelModelID, channelModel)
 	channelModelStatsNeedUpdate[channelModelID] = struct{}{}
-	return nil
 }
 
-func StatsAPIKeyUpdate(apiKeyID int, metrics model.StatsMetrics) error {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func statsAPIKeyUpdateUnlocked(apiKeyID int, metrics model.StatsMetrics) {
 	statsAPIKeyCacheNeedUpdateLock.Lock()
 	defer statsAPIKeyCacheNeedUpdateLock.Unlock()
 	apiKeyCache, ok := statsAPIKeyCache.Get(apiKeyID)
@@ -346,7 +330,69 @@ func StatsAPIKeyUpdate(apiKeyID int, metrics model.StatsMetrics) error {
 	apiKeyCache.StatsMetrics.Add(metrics)
 	statsAPIKeyCache.Set(apiKeyID, apiKeyCache)
 	statsAPIKeyCacheNeedUpdate[apiKeyID] = struct{}{}
+}
+
+// StatsDailyUpdate 累加每日统计并在跨日时持久化前一天快照。
+func StatsDailyUpdate(ctx context.Context, metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	return statsDailyUpdateUnlocked(ctx, metrics)
+}
+
+func StatsTotalUpdate(metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	statsTotalUpdateUnlocked(metrics)
 	return nil
+}
+
+func StatsHourlyUpdate(metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	statsHourlyUpdateUnlocked(metrics)
+	return nil
+}
+
+// ChannelStatsUpdate 累加渠道统计并标记对应渠道待持久化。
+func ChannelStatsUpdate(channelID int, metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	channelStatsUpdateUnlocked(channelID, metrics)
+	return nil
+}
+
+// ChannelModelStatsUpdate 累加渠道模型统计并标记对应模型待持久化。
+func ChannelModelStatsUpdate(channelModelID int, metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	channelModelStatsUpdateUnlocked(channelModelID, metrics)
+	return nil
+}
+
+func StatsAPIKeyUpdate(apiKeyID int, metrics model.StatsMetrics) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	statsAPIKeyUpdateUnlocked(apiKeyID, metrics)
+	return nil
+}
+
+// StatsRecord atomically records one logical request and all of its upstream
+// round deltas relative to a concurrent statistics clear.
+func StatsRecord(ctx context.Context, metrics model.StatsMetrics, channelDeltas []ChannelStatsDelta, apiKeyID int) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
+	statsTotalUpdateUnlocked(metrics)
+	statsHourlyUpdateUnlocked(metrics)
+	dailyErr := statsDailyUpdateUnlocked(ctx, metrics)
+	for _, delta := range channelDeltas {
+		channelStatsUpdateUnlocked(delta.ChannelID, delta.Metrics)
+		channelModelStatsUpdateUnlocked(delta.ChannelModelID, delta.Metrics)
+	}
+	if apiKeyID > 0 {
+		statsAPIKeyUpdateUnlocked(apiKeyID, metrics)
+	}
+	return dailyErr
 }
 
 func StatsAPIKeyDel(id int) error {
@@ -440,28 +486,35 @@ func StatsClear(ctx context.Context) error {
 	return nil
 }
 
-func StatsTotalGet() model.StatsTotal {
-	statsLifecycleMu.RLock()
-	defer statsLifecycleMu.RUnlock()
-
+func statsTotalGetUnlocked() model.StatsTotal {
 	statsTotalCacheLock.RLock()
 	defer statsTotalCacheLock.RUnlock()
 	return statsTotalCache
 }
 
-func StatsTodayGet() model.StatsDaily {
+func StatsTotalGet() model.StatsTotal {
 	statsLifecycleMu.RLock()
 	defer statsLifecycleMu.RUnlock()
+	return statsTotalGetUnlocked()
+}
 
+func statsTodayGetUnlocked() model.StatsDaily {
+	today := time.Now().Format("20060102")
 	statsDailyCacheLock.RLock()
 	defer statsDailyCacheLock.RUnlock()
+	if statsDailyCache.Date != today {
+		return model.StatsDaily{Date: today}
+	}
 	return statsDailyCache
 }
 
-func StatsAPIKeyGet(id int) model.StatsAPIKey {
+func StatsTodayGet() model.StatsDaily {
 	statsLifecycleMu.RLock()
 	defer statsLifecycleMu.RUnlock()
+	return statsTodayGetUnlocked()
+}
 
+func statsAPIKeyGetUnlocked(id int) model.StatsAPIKey {
 	if stats, ok := statsAPIKeyCache.Get(id); ok {
 		return stats
 	}
@@ -479,10 +532,13 @@ func StatsAPIKeyGet(id int) model.StatsAPIKey {
 	return stats
 }
 
-func StatsAPIKeyList() []model.StatsAPIKey {
+func StatsAPIKeyGet(id int) model.StatsAPIKey {
 	statsLifecycleMu.RLock()
 	defer statsLifecycleMu.RUnlock()
+	return statsAPIKeyGetUnlocked(id)
+}
 
+func statsAPIKeyListUnlocked() []model.StatsAPIKey {
 	apiKeys := make([]model.StatsAPIKey, 0, statsAPIKeyCache.Len())
 	for _, v := range statsAPIKeyCache.GetAll() {
 		apiKeys = append(apiKeys, v)
@@ -490,10 +546,13 @@ func StatsAPIKeyList() []model.StatsAPIKey {
 	return apiKeys
 }
 
-func StatsHourlyGet() []model.StatsHourly {
+func StatsAPIKeyList() []model.StatsAPIKey {
 	statsLifecycleMu.RLock()
 	defer statsLifecycleMu.RUnlock()
+	return statsAPIKeyListUnlocked()
+}
 
+func statsHourlyGetUnlocked() []model.StatsHourly {
 	now := time.Now()
 	currentHour := now.Hour()
 	todayDate := time.Now().Format("20060102")
@@ -517,9 +576,21 @@ func StatsHourlyGet() []model.StatsHourly {
 	return result
 }
 
+func StatsHourlyGet() []model.StatsHourly {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	return statsHourlyGetUnlocked()
+}
+
 func StatsGetDaily(ctx context.Context) ([]model.StatsDaily, error) {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+	return statsGetDailyUnlocked(ctx)
+}
+
+func statsGetDailyUnlocked(ctx context.Context) ([]model.StatsDaily, error) {
 	var statsDaily []model.StatsDaily
-	result := db.GetDB().WithContext(ctx).Find(&statsDaily)
+	result := db.GetDB().WithContext(ctx).Order("date asc").Find(&statsDaily)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -532,8 +603,11 @@ func StatsSummaryGet(ctx context.Context, period string) (model.StatsSummary, er
 		return model.StatsSummary{}, fmt.Errorf("invalid stats summary period: %s", period)
 	}
 
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
 	if period == "1" {
-		hourly := StatsHourlyGet()
+		hourly := statsHourlyGetUnlocked()
 		var metrics model.StatsMetrics
 		points := make([]model.StatsSummaryPoint, 0, len(hourly))
 		for _, stat := range hourly {
@@ -547,33 +621,58 @@ func StatsSummaryGet(ctx context.Context, period string) (model.StatsSummary, er
 		return model.StatsSummary{Period: period, StatsMetrics: metrics, Points: points}, nil
 	}
 
-	daily, err := StatsGetDaily(ctx)
-	if err != nil {
-		return model.StatsSummary{}, err
-	}
-	// Replace the persisted row for today, or append it when the first save has not happened yet.
-	today := StatsTodayGet()
-	foundToday := false
-	for i := range daily {
-		if daily[i].Date == today.Date {
-			daily[i] = today
-			foundToday = true
-			break
-		}
-	}
-	if today.Date != "" && !foundToday {
-		daily = append(daily, today)
-	}
-	sort.Slice(daily, func(i, j int) bool { return daily[i].Date < daily[j].Date })
-
-	if period != "all" {
+	today := statsTodayGetUnlocked()
+	var daily []model.StatsDaily
+	var err error
+	if period == "all" {
+		daily, err = statsGetDailyUnlocked(ctx)
+	} else {
 		days := 7
 		if period == "30" {
 			days = 30
 		}
-		if len(daily) > days {
-			daily = daily[len(daily)-days:]
+		todayDate := time.Now()
+		startDate := todayDate.AddDate(0, 0, -(days - 1)).Format("20060102")
+		endDate := todayDate.Format("20060102")
+		err = db.GetDB().WithContext(ctx).
+			Where("date BETWEEN ? AND ?", startDate, endDate).
+			Order("date asc").Find(&daily).Error
+		if err == nil {
+			byDate := make(map[string]model.StatsDaily, len(daily)+1)
+			for _, stat := range daily {
+				byDate[stat.Date] = stat
+			}
+			filled := make([]model.StatsDaily, 0, days)
+			for date := todayDate.AddDate(0, 0, -(days - 1)); !date.After(todayDate); date = date.AddDate(0, 0, 1) {
+				key := date.Format("20060102")
+				stat, ok := byDate[key]
+				if !ok {
+					stat = model.StatsDaily{Date: key}
+				}
+				if key == today.Date {
+					stat = today
+				}
+				filled = append(filled, stat)
+			}
+			daily = filled
 		}
+	}
+	if err != nil {
+		return model.StatsSummary{}, err
+	}
+	if period == "all" {
+		foundToday := false
+		for i := range daily {
+			if daily[i].Date == today.Date {
+				daily[i] = today
+				foundToday = true
+				break
+			}
+		}
+		if !foundToday {
+			daily = append(daily, today)
+		}
+		sort.Slice(daily, func(i, j int) bool { return daily[i].Date < daily[j].Date })
 	}
 
 	var metrics model.StatsMetrics
@@ -587,9 +686,35 @@ func StatsSummaryGet(ctx context.Context, period string) (model.StatsSummary, er
 		})
 	}
 	if period == "all" {
-		metrics = StatsTotalGet().StatsMetrics
+		points = downsampleSummaryPoints(points, 366)
+	}
+	if period == "all" {
+		metrics = statsTotalGetUnlocked().StatsMetrics
 	}
 	return model.StatsSummary{Period: period, StatsMetrics: metrics, Points: points}, nil
+}
+
+// downsampleSummaryPoints bounds the all-time chart payload while preserving
+// the total cost and request count represented by every bucket.
+func downsampleSummaryPoints(points []model.StatsSummaryPoint, maxPoints int) []model.StatsSummaryPoint {
+	if maxPoints <= 0 || len(points) <= maxPoints {
+		return points
+	}
+	bucketSize := (len(points) + maxPoints - 1) / maxPoints
+	result := make([]model.StatsSummaryPoint, 0, (len(points)+bucketSize-1)/bucketSize)
+	for start := 0; start < len(points); start += bucketSize {
+		end := start + bucketSize
+		if end > len(points) {
+			end = len(points)
+		}
+		bucket := model.StatsSummaryPoint{Date: points[start].Date}
+		for _, point := range points[start:end] {
+			bucket.TotalCost += point.TotalCost
+			bucket.RequestCount += point.RequestCount
+		}
+		result = append(result, bucket)
+	}
+	return result
 }
 
 func statsRefreshCache(ctx context.Context) error {

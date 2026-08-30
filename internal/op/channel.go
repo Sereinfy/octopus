@@ -63,6 +63,9 @@ func ChannelCreate(channel *model.Channel, ctx context.Context) error {
 
 // ChannelUpdate 更新渠道配置和模型行，并删除不再提供的模型。
 func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model.Channel, error) {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
 	if _, ok := channelCache.Get(req.ID); !ok {
 		return nil, fmt.Errorf("channel not found")
 	}
@@ -209,6 +212,9 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 
 // ChannelEnabled 更新渠道启用状态。
 func ChannelEnabled(id int, enabled bool, ctx context.Context) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
 	if _, ok := channelCache.Get(id); !ok {
 		return fmt.Errorf("channel not found")
 	}
@@ -272,6 +278,9 @@ func ChannelGet(id int) (model.Channel, error) {
 }
 
 func channelRefreshCacheByID(id int, ctx context.Context) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
 	var channel model.Channel
 	if err := db.GetDB().WithContext(ctx).First(&channel, id).Error; err != nil {
 		return err
@@ -295,6 +304,9 @@ func ChannelModelGet(id int) (model.ChannelModel, error) {
 
 // channelRefreshCache 从数据库刷新渠道和渠道模型缓存。
 func channelRefreshCache(ctx context.Context) error {
+	statsLifecycleMu.RLock()
+	defer statsLifecycleMu.RUnlock()
+
 	channels := []model.Channel{}
 	if err := db.GetDB().WithContext(ctx).Find(&channels).Error; err != nil {
 		log.Warnf("failed to get channels: %v", err)

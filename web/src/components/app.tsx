@@ -8,7 +8,6 @@ import {
     channelListQueryOptions,
     groupListQueryOptions,
     modelListQueryOptions,
-    statsDailyQueryOptions,
     statsSummaryQueryOptions,
     statsTodayQueryOptions,
 } from '@/api/queries';
@@ -70,7 +69,6 @@ export function AppContainer() {
                 queryClient.fetchQuery(channelListQueryOptions),
                 queryClient.fetchQuery(groupListQueryOptions),
                 queryClient.fetchQuery(modelListQueryOptions),
-                queryClient.fetchQuery(statsDailyQueryOptions),
                 queryClient.fetchQuery(statsSummaryQueryOptions('7')),
                 queryClient.fetchQuery(statsTodayQueryOptions),
             ];

@@ -54,12 +54,13 @@ type RequestState struct {
 	Sending       bool   `json:"sending"`         // 最新一轮是否仍在等待上游响应。
 	Error         string `json:"error,omitempty"` // 最新一轮的失败原因, 请求结束后即为最终错误。
 
-	body              string             // 客户端原始请求体, 体积大故不进状态流, 由独立接口按需拉取。
-	responseBody      string             // 聚合后的完整最终响应体, 同样按需拉取。
-	apiKeyID          int                // 发起请求的 API Key ID, 用于请求完成后的归属统计。
-	cancel            context.CancelFunc // 中止最新一轮上游请求, 仅在该轮等待响应期间非空。
-	appliedMultiplier float64            // 本次请求实际采用的对话倍率。
-	imageCost         float64            // 已按生图请求次数累计的固定费用。
+	body              string                 // 客户端原始请求体, 体积大故不进状态流, 由独立接口按需拉取。
+	responseBody      string                 // 聚合后的完整最终响应体, 同样按需拉取。
+	apiKeyID          int                    // 发起请求的 API Key ID, 用于请求完成后的归属统计。
+	channelStats      []op.ChannelStatsDelta // 本请求各上游轮次的渠道和模型统计增量。
+	cancel            context.CancelFunc     // 中止最新一轮上游请求, 仅在该轮等待响应期间非空。
+	appliedMultiplier float64                // 本次请求实际采用的对话倍率。
+	imageCost         float64                // 已按生图请求次数累计的固定费用。
 }
 
 const streamBuffer = 16 // 单个状态流连接的非阻塞消息缓冲容量。
@@ -141,6 +142,17 @@ func (r *RequestState) recordImageCharge(channel model.Channel, image *llm.Image
 	}
 	r.PricingValue = r.imageCost / float64(r.PricingCount)
 	publishRequestLocked(r)
+}
+
+// recordChannelStats 暂存本轮渠道和模型增量, 在请求终态时与请求级统计一起提交。
+func (r *RequestState) recordChannelStats(channelID, channelModelID int, metrics model.StatsMetrics) {
+	mu.Lock()
+	defer mu.Unlock()
+	r.channelStats = append(r.channelStats, op.ChannelStatsDelta{
+		ChannelID:      channelID,
+		ChannelModelID: channelModelID,
+		Metrics:        metrics,
+	})
 }
 
 // startRound 记录本轮选中的目标并进入上游请求, cancel 供人工中止本轮, 返回递增的轮次序号。
@@ -293,12 +305,7 @@ func (r *RequestState) finishLocked(usage *llm.Usage) {
 	} else {
 		metrics.RequestFailed = 1
 	}
-	_ = op.StatsTotalUpdate(metrics)
-	_ = op.StatsHourlyUpdate(metrics)
-	_ = op.StatsDailyUpdate(context.Background(), metrics)
-	if r.apiKeyID > 0 {
-		_ = op.StatsAPIKeyUpdate(r.apiKeyID, metrics)
-	}
+	_ = op.StatsRecord(context.Background(), metrics, r.channelStats, r.apiKeyID)
 	publishRequestLocked(r)
 
 	finished := 0

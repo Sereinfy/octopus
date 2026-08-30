@@ -250,7 +250,7 @@ export function useStatsSummary(period: StatsSummary['period']) {
             period: data.period,
             points: data.points,
         }),
-        refetchInterval: 10000,
+        refetchInterval: period === '1' ? 10000 : period === '7' ? 15000 : period === '30' ? 30000 : 60000,
         refetchOnMount: 'always',
     });
 }
