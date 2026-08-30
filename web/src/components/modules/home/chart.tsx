@@ -146,12 +146,15 @@ export function StatsChart() {
 }
 
 function StatItem({ label, value }: { label: string; value: ReturnType<typeof formatCount>['formatted'] }) {
+    const isPercentage = value.value.endsWith('%');
+    const animatedValue = isPercentage ? value.value.slice(0, -1) : value.value;
+
     return (
         <div className="flex min-w-0 flex-1 items-baseline gap-1 whitespace-nowrap">
             <span className="min-w-0 truncate text-[11px] text-muted-foreground">{label}</span>
             <span className="shrink-0 font-medium">
-                <AnimatedNumber value={value.value} />
-                {value.unit && <span className="ml-0.5 text-xs text-muted-foreground">{value.unit}</span>}
+                <AnimatedNumber value={animatedValue} />
+                {isPercentage ? '%' : value.unit && <span className="ml-0.5 text-xs text-muted-foreground">{value.unit}</span>}
             </span>
         </div>
     );
