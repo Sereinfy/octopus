@@ -1,8 +1,37 @@
-import { Loader2, Logs } from 'lucide-react';
+import { Loader2, Logs, Pause, Play } from 'lucide-react';
 import { useTranslations } from 'use-intl';
-import { useLogs } from '@/api/log';
+import { useLogViewStore, useLogs } from '@/api/log';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
 import { LogCard } from './Item';
+
+// LogActions exposes the log stream pause/resume control in the shared top-right action area.
+export function LogActions() {
+    const t = useTranslations('log.actions');
+    const paused = useLogViewStore((state) => state.paused);
+    const togglePaused = useLogViewStore((state) => state.togglePaused);
+    const label = paused ? t('resume') : t('pause');
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={label}
+                    aria-pressed={paused}
+                    onClick={togglePaused}
+                    className="rounded-xl text-muted-foreground hover:text-foreground"
+                >
+                    {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{label}</TooltipContent>
+        </Tooltip>
+    );
+}
 
 // Log 展示进程内日志概览，并按 RequestID 实时更新卡片。
 export function Log() {

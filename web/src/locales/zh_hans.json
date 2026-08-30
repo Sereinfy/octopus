@@ -451,6 +451,10 @@
             "empty": "暂无日志",
             "disconnected": "日志连接已断开，正在重连"
         },
+        "actions": {
+            "pause": "暂停日志刷新",
+            "resume": "恢复日志刷新"
+        },
         "status": {
             "committed": "响应中"
         },

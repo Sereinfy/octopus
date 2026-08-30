@@ -1,6 +1,18 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { create } from 'zustand';
 import { useEffect, useState } from 'react';
 import { apiRequest } from './client';
+
+interface LogViewState {
+    paused: boolean;
+    togglePaused: () => void;
+}
+
+// useLogViewStore stores the log stream view state shared by the page body and top-right actions.
+export const useLogViewStore = create<LogViewState>((set) => ({
+    paused: false,
+    togglePaused: () => set((state) => ({ paused: !state.paused })),
+}));
 
 // RequestState 表示 Relay 请求的实时状态。
 export type RequestState = 'running' | 'committed' | 'success' | 'failed' | 'canceled';
@@ -63,11 +75,14 @@ export function useStopRound() {
 
 // useLogs 订阅进程内日志概览，并按 RequestID 更新同一条记录。
 export function useLogs() {
+    const paused = useLogViewStore((state) => state.paused);
     const [logs, setLogs] = useState<RelayLogOverview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
     useEffect(() => {
+        if (paused) return;
+
         const source = new EventSource('/api/v1/log/overview/stream', { withCredentials: true });
 
         source.onopen = () => {
@@ -106,9 +121,9 @@ export function useLogs() {
         return () => {
             source.close();
         };
-    }, []);
+    }, [paused]);
 
-    return { logs, isLoading, error };
+    return { logs, isLoading: paused ? false : isLoading, error: paused ? null : error };
 }
 
 // useLogRequestBody 在调用方启用时按需获取指定日志的请求体。

@@ -451,6 +451,10 @@
             "empty": "No logs yet",
             "disconnected": "Log stream disconnected, reconnecting"
         },
+        "actions": {
+            "pause": "Pause log refresh",
+            "resume": "Resume log refresh"
+        },
         "status": {
             "committed": "Responding"
         },

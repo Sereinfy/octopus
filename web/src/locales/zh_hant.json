@@ -451,6 +451,10 @@
             "empty": "暫無日誌",
             "disconnected": "日誌連線已中斷，正在重新連線"
         },
+        "actions": {
+            "pause": "暫停日誌刷新",
+            "resume": "恢復日誌刷新"
+        },
         "status": {
             "committed": "回應中"
         },

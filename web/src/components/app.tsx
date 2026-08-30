@@ -28,6 +28,7 @@ const HomeActions = lazy(() => pageImports.home().then((module) => ({ default: m
 const ChannelActions = lazy(() => pageImports.channel().then((module) => ({ default: module.ChannelActions })));
 const GroupActions = lazy(() => pageImports.group().then((module) => ({ default: module.GroupActions })));
 const ModelActions = lazy(() => pageImports.model().then((module) => ({ default: module.ModelActions })));
+const LogActions = lazy(() => pageImports.log().then((module) => ({ default: module.LogActions })));
 
 // InitialLoadingGate 在当前界面提交后淡出并移除 HTML 首屏加载动画。
 function InitialLoadingGate({ children }: { children: ReactNode }) {
@@ -116,6 +117,7 @@ export function AppContainer() {
                     {visibleItem === 'channel' && <ChannelActions />}
                     {visibleItem === 'group' && <GroupActions />}
                     {visibleItem === 'model' && <ModelActions />}
+                    {visibleItem === 'log' && <LogActions />}
                 </Suspense>
             }
         >
