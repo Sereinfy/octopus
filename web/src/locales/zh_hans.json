@@ -105,6 +105,7 @@
             },
             "metrics": {
                 "requests": "请求",
+                "requestUnit": "次",
                 "inputTokens": "输入词元",
                 "outputTokens": "输出词元",
                 "cacheHits": "缓存命中",

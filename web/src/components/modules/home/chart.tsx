@@ -28,9 +28,10 @@ export function StatsChart() {
     const t = useTranslations('home.summary');
 
     const hero = summary?.total_cost.formatted;
+    const requestUnit = t('metrics.requestUnit');
     const metrics = summary
         ? {
-            requests: summary.request_count.formatted,
+            requests: formatRequestCount(summary.request_count.raw, requestUnit),
             inputTokens: summary.input_token.formatted,
             outputTokens: summary.output_token.formatted,
             cacheHits: summary.cache_read_token.formatted,
@@ -40,12 +41,12 @@ export function StatsChart() {
             waitTime: summary.wait_time.formatted,
         }
         : {
-            requests: formatCount(0).formatted,
+            requests: formatRequestCount(0, requestUnit),
             inputTokens: formatCount(0).formatted,
             outputTokens: formatCount(0).formatted,
             cacheHits: formatCount(0).formatted,
             cacheWrites: formatCount(0).formatted,
-            cacheHitRate: { value: '0.0%', unit: '' },
+            cacheHitRate: { value: '0.00%', unit: '' },
             totalTokens: formatCount(0).formatted,
             waitTime: formatTime(0).formatted,
         };
@@ -97,19 +98,19 @@ export function StatsChart() {
                 </Tabs>
             </header>
 
-            <div className="mx-5 flex flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-border/60 py-3 text-sm tabular-nums">
+            <div className="mx-5 flex min-w-0 flex-nowrap items-baseline gap-x-1 overflow-hidden border-t border-border/60 py-2 text-xs tabular-nums sm:gap-x-2">
                 <StatItem label={t('metrics.requests')} value={metrics.requests} />
-                <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
+                <span className="hidden h-4 w-px shrink-0 bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.inputTokens')} value={metrics.inputTokens} />
-                <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
+                <span className="hidden h-4 w-px shrink-0 bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.outputTokens')} value={metrics.outputTokens} />
-                <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
+                <span className="hidden h-4 w-px shrink-0 bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.cacheHits')} value={metrics.cacheHits} />
                 <StatItem label={t('metrics.cacheWrites')} value={metrics.cacheWrites} />
                 <StatItem label={t('metrics.cacheHitRate')} value={metrics.cacheHitRate} />
-                <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
+                <span className="hidden h-4 w-px shrink-0 bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.totalTokens')} value={metrics.totalTokens} />
-                <span className="hidden h-4 w-px bg-border/60 sm:inline-block" />
+                <span className="hidden h-4 w-px shrink-0 bg-border/60 sm:inline-block" />
                 <StatItem label={t('metrics.waitTime')} value={metrics.waitTime} />
             </div>
 
@@ -141,12 +142,17 @@ export function StatsChart() {
 
 function StatItem({ label, value }: { label: string; value: ReturnType<typeof formatCount>['formatted'] }) {
     return (
-        <div className="flex items-baseline gap-1.5">
-            <span className="text-xs text-muted-foreground">{label}</span>
-            <span className="font-medium">
+        <div className="flex min-w-0 flex-1 items-baseline gap-1 whitespace-nowrap">
+            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{label}</span>
+            <span className="shrink-0 font-medium">
                 <AnimatedNumber value={value.value} />
                 {value.unit && <span className="ml-0.5 text-xs text-muted-foreground">{value.unit}</span>}
             </span>
         </div>
     );
+}
+
+function formatRequestCount(value: number | undefined, unit: string) {
+    const count = Math.max(0, Math.round(value ?? 0));
+    return { value: String(count), unit };
 }

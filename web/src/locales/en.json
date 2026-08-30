@@ -105,6 +105,7 @@
             },
             "metrics": {
                 "requests": "Requests",
+                "requestUnit": "times",
                 "inputTokens": "Input Tokens",
                 "outputTokens": "Output Tokens",
                 "cacheHits": "Cache Hits",

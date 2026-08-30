@@ -105,6 +105,7 @@
             },
             "metrics": {
                 "requests": "請求",
+                "requestUnit": "次",
                 "inputTokens": "輸入詞元",
                 "outputTokens": "輸出詞元",
                 "cacheHits": "快取命中",

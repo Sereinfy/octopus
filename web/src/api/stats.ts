@@ -46,9 +46,9 @@ export interface StatsDailyFormatted extends StatsMetricsFormatted {
     date: string;
 }
 
-export function formatPercentage(value: number | undefined) {
+export function formatPercentage(value: number | undefined, fractionDigits = 2) {
     const raw = value ?? 0;
-    return { raw, formatted: { value: `${raw.toFixed(1)}%`, unit: '' } };
+    return { raw, formatted: { value: `${raw.toFixed(fractionDigits)}%`, unit: '' } };
 }
 
 export function formatCacheHitRate(inputToken: number | undefined, cacheReadToken: number | undefined) {
