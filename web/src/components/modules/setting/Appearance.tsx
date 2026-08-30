@@ -1,13 +1,19 @@
 import { useTheme } from '@/provider/theme';
 import { useTranslations } from 'use-intl';
-import { Sun, Moon, Monitor, Languages } from 'lucide-react';
+import { Sun, Moon, Monitor, Languages, Palette, Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSettingStore, type Locale } from '@/stores/setting';
+import {
+    COLOR_THEMES,
+    useSettingStore,
+    type ColorTheme,
+    type Locale,
+} from '@/stores/setting';
+import { cn } from '@/lib/utils';
 
 export function SettingAppearance() {
     const t = useTranslations('setting');
     const { theme, setTheme } = useTheme();
-    const { locale, setLocale } = useSettingStore();
+    const { locale, setLocale, colorTheme, setColorTheme } = useSettingStore();
 
     return (
         <div className="rounded-3xl border border-border bg-card p-6 space-y-5">
@@ -16,7 +22,7 @@ export function SettingAppearance() {
                 {t('appearance')}
             </h2>
 
-            {/* 主题 */}
+            {/* Light/dark mode */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     {theme === 'dark' ? <Moon className="h-5 w-5 text-muted-foreground" /> : <Sun className="h-5 w-5 text-muted-foreground" />}
@@ -43,7 +49,46 @@ export function SettingAppearance() {
                 </Select>
             </div>
 
-            {/* 语言 */}
+            {/* Classic shadcn color palettes */}
+            <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                    <Palette className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                        <div className="text-sm font-medium">{t('colorTheme.label')}</div>
+                        <div className="text-xs text-muted-foreground">{t('colorTheme.hint')}</div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {COLOR_THEMES.map((item) => {
+                        const active = colorTheme === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setColorTheme(item.id as ColorTheme)}
+                                className={cn(
+                                    'flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition',
+                                    active
+                                        ? 'border-primary/40 bg-primary/10 ring-2 ring-primary/20'
+                                        : 'border-border/70 bg-background/60 hover:bg-muted/50',
+                                )}
+                            >
+                                <span
+                                    className="size-5 shrink-0 rounded-full border border-black/10 shadow-sm dark:border-white/10"
+                                    style={{ background: item.swatch }}
+                                    aria-hidden
+                                />
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                    {t(`colorTheme.names.${item.id}`)}
+                                </span>
+                                {active ? <Check className="size-4 shrink-0 text-primary" /> : null}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Language */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <Languages className="h-5 w-5 text-muted-foreground" />

@@ -16,11 +16,20 @@
     <link rel="apple-touch-icon" href="./apple-icon.png" />
     <title>Octopus</title>
     <script>
+      const root = document.documentElement;
       const theme = localStorage.getItem('theme');
       const isDark =
         theme === 'dark' ||
         ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      const root = document.documentElement;
+      try {
+        const settings = JSON.parse(localStorage.getItem('octopus-settings') || '{}');
+        const colorTheme = settings?.state?.colorTheme;
+        if (colorTheme && colorTheme !== 'default') {
+          root.setAttribute('data-color-theme', colorTheme);
+        }
+      } catch {
+        // Ignore malformed persisted settings and fall back to the default palette.
+      }
       root.classList.toggle('dark', isDark);
       root.style.colorScheme = isDark ? 'dark' : 'light';
       document.querySelector('meta[name="theme-color"]')?.setAttribute(

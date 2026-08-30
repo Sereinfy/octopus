@@ -139,6 +139,21 @@
             "dark": "深色",
             "system": "跟随系统"
         },
+        "colorTheme": {
+            "label": "色彩主题",
+            "hint": "经典 shadcn 风格色板，可与浅色/深色模式叠加使用。",
+            "names": {
+                "default": "默认绿",
+                "zinc": "Zinc",
+                "slate": "Slate",
+                "stone": "Stone",
+                "blue": "Blue",
+                "green": "Green",
+                "orange": "Orange",
+                "rose": "Rose",
+                "violet": "Violet"
+            }
+        },
         "language": {
             "label": "语言",
             "zh_hans": "简体中文",

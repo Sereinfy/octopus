@@ -139,6 +139,21 @@
             "dark": "Dark",
             "system": "System"
         },
+        "colorTheme": {
+            "label": "Color theme",
+            "hint": "Classic shadcn-style palettes. Works with light/dark mode.",
+            "names": {
+                "default": "Default green",
+                "zinc": "Zinc",
+                "slate": "Slate",
+                "stone": "Stone",
+                "blue": "Blue",
+                "green": "Green",
+                "orange": "Orange",
+                "rose": "Rose",
+                "violet": "Violet"
+            }
+        },
         "language": {
             "label": "Language",
             "zh_hans": "Chinese (Simplified)",
