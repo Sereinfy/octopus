@@ -47,6 +47,10 @@
         "setting": "设置"
     },
     "toolbar": {
+        "hideChannelName": "模糊渠道名称",
+        "share": "分享",
+        "download": "下载",
+        "close": "关闭",
         "popover": {
             "ariaLabel": "视图选项",
             "layout": "布局",

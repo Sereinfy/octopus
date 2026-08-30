@@ -7,6 +7,7 @@ import (
 
 	"github.com/bestruirui/octopus/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func init() {
@@ -82,9 +83,14 @@ func migrateChannelModels(db *gorm.DB) error {
 		}
 
 		// 同名模型只保留一行，手动来源优先于自动来源。
+		// 旧 group_items 对 channel_id 没有外键，渠道删除后会留下孤立行，
+		// 这些行引用的渠道已不存在，插入 channel_models 会违反外键，必须跳过。
 		addModel := func(channelID int, name string, source model.ChannelModelSource) {
 			name = strings.TrimSpace(name)
 			if channelID == 0 || name == "" {
+				return
+			}
+			if _, ok := channelAutoSync[channelID]; !ok {
 				return
 			}
 			key := channelModelKey{ChannelID: channelID, Name: name}
@@ -149,8 +155,39 @@ func migrateChannelModels(db *gorm.DB) error {
 			if _, exists := existingModelKeys[key]; exists {
 				continue
 			}
-			if err := tx.Create(channelModel).Error; err != nil {
+			// MySQL 默认排序规则不区分大小写，仅大小写不同的模型会撞唯一索引，
+			// 冲突时跳过并在下面重新读取真实主键。
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(channelModel).Error; err != nil {
 				return fmt.Errorf("failed to create channel_model %s: %w", channelModel.Name, err)
+			}
+		}
+
+		// 冲突跳过的行不会回写主键，统一重新读取并按精确名优先、小写名兜底回填。
+		saved := make([]model.ChannelModel, 0)
+		if err := tx.Order("id ASC").Find(&saved).Error; err != nil {
+			return fmt.Errorf("failed to reload channel_models: %w", err)
+		}
+		savedIDByKey := make(map[channelModelKey]int, len(saved))
+		savedIDByLowerKey := make(map[channelModelKey]int, len(saved))
+		for _, channelModel := range saved {
+			name := strings.TrimSpace(channelModel.Name)
+			exact := channelModelKey{ChannelID: channelModel.ChannelID, Name: name}
+			if _, ok := savedIDByKey[exact]; !ok {
+				savedIDByKey[exact] = channelModel.ID
+			}
+			lower := channelModelKey{ChannelID: channelModel.ChannelID, Name: strings.ToLower(name)}
+			if _, ok := savedIDByLowerKey[lower]; !ok {
+				savedIDByLowerKey[lower] = channelModel.ID
+			}
+		}
+		for _, key := range modelOrder {
+			channelModel := modelsByKey[key]
+			if id, ok := savedIDByKey[channelModelKey{ChannelID: key.ChannelID, Name: strings.TrimSpace(key.Name)}]; ok {
+				channelModel.ID = id
+				continue
+			}
+			if id, ok := savedIDByLowerKey[channelModelKey{ChannelID: key.ChannelID, Name: strings.ToLower(strings.TrimSpace(key.Name))}]; ok {
+				channelModel.ID = id
 			}
 		}
 
@@ -238,13 +275,25 @@ func migrateLegacyGroupItems(db *gorm.DB, modelsByKey map[channelModelKey]*model
 		return fmt.Errorf("failed to read group_items: %w", err)
 	}
 
+	// 区分大小写的数据库按原名定位，不区分大小写的数据库按小写名兜底。
+	modelsByLowerKey := make(map[channelModelKey]*model.ChannelModel, len(modelsByKey))
+	for key, channelModel := range modelsByKey {
+		lower := channelModelKey{ChannelID: key.ChannelID, Name: strings.ToLower(strings.TrimSpace(key.Name))}
+		if _, ok := modelsByLowerKey[lower]; !ok {
+			modelsByLowerKey[lower] = channelModel
+		}
+	}
+
 	items := make([]model.GroupItem, 0, len(legacyItems))
 	invalidIDs := make([]int, 0)
 	seen := make(map[[2]int]struct{}, len(legacyItems))
 	for _, item := range legacyItems {
-		key := channelModelKey{ChannelID: item.ChannelID, Name: strings.TrimSpace(item.ModelName)}
-		channelModel, ok := modelsByKey[key]
+		name := strings.TrimSpace(item.ModelName)
+		channelModel, ok := modelsByKey[channelModelKey{ChannelID: item.ChannelID, Name: name}]
 		if !ok {
+			channelModel, ok = modelsByLowerKey[channelModelKey{ChannelID: item.ChannelID, Name: strings.ToLower(name)}]
+		}
+		if !ok || channelModel.ID == 0 {
 			invalidIDs = append(invalidIDs, item.ID)
 			continue
 		}
@@ -279,9 +328,54 @@ func migrateLegacyGroupItems(db *gorm.DB, modelsByKey map[channelModelKey]*model
 		}
 	}
 	if db.Migrator().HasTable("groups") {
-		if err := db.Exec("UPDATE groups SET active_item_id = 0 WHERE active_item_id <> 0 AND NOT EXISTS (SELECT 1 FROM group_items WHERE group_items.id = groups.active_item_id AND group_items.group_id = groups.id)").Error; err != nil {
-			return fmt.Errorf("failed to clear stale active items: %w", err)
+		if err := clearStaleActiveItems(db); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// clearStaleActiveItems 把 active_item_id 指向已不存在或不属于本分组的成员的分组重置为 0。
+// 通过 GORM 模型查询，避免 MySQL 8 将 groups 识别为保留字。
+func clearStaleActiveItems(db *gorm.DB) error {
+	type groupActiveItem struct {
+		ID           int
+		ActiveItemID int
+	}
+	groups := make([]groupActiveItem, 0)
+	if err := db.Model(&model.Group{}).Where("active_item_id <> 0").
+		Select("id, active_item_id").Find(&groups).Error; err != nil {
+		return fmt.Errorf("failed to read group active items: %w", err)
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+
+	type groupItemRef struct {
+		ID      int
+		GroupID int
+	}
+	items := make([]groupItemRef, 0)
+	if err := db.Model(&model.GroupItem{}).Select("id, group_id").Find(&items).Error; err != nil {
+		return fmt.Errorf("failed to read group items: %w", err)
+	}
+	itemGroup := make(map[int]int, len(items))
+	for _, item := range items {
+		itemGroup[item.ID] = item.GroupID
+	}
+
+	staleIDs := make([]int, 0)
+	for _, group := range groups {
+		if groupID, ok := itemGroup[group.ActiveItemID]; !ok || groupID != group.ID {
+			staleIDs = append(staleIDs, group.ID)
+		}
+	}
+	if len(staleIDs) == 0 {
+		return nil
+	}
+	if err := db.Model(&model.Group{}).Where("id IN ?", staleIDs).
+		Update("active_item_id", 0).Error; err != nil {
+		return fmt.Errorf("failed to clear stale active items: %w", err)
 	}
 	return nil
 }

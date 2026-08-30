@@ -47,6 +47,10 @@
         "setting": "Setting"
     },
     "toolbar": {
+        "hideChannelName": "Hide channel names",
+        "share": "Share",
+        "download": "Download",
+        "close": "Close",
         "popover": {
             "ariaLabel": "View options",
             "layout": "Layout",

@@ -5,8 +5,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHomeViewStore, type ChartPeriod } from '@/components/modules/home/store';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { useTranslations } from 'use-intl';
+import { useTheme } from '@/provider/theme';
 
 const PERIODS: readonly ChartPeriod[] = ['1', '7', '30', 'all'];
 const PERIOD_KEY: Record<ChartPeriod, 'today' | 'last7Days' | 'last30Days' | 'allTime'> = {
@@ -22,6 +23,8 @@ function formatDate(date: string): string {
 }
 
 export function StatsChart() {
+    useTheme();
+    const gradientId = `fillCost-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
     const period = useHomeViewStore((state) => state.chartPeriod);
     const setChartPeriod = useHomeViewStore((state) => state.setChartPeriod);
     const { data: summary } = useStatsSummary(period);
@@ -67,6 +70,8 @@ export function StatsChart() {
             total_cost: point.total_cost,
         }));
     }, [summary?.points]);
+
+    const chartColor = getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim();
 
     const heroUnitSuffix = hero?.unit.endsWith('$') ? hero.unit.slice(0, -1) : hero?.unit;
 
@@ -117,9 +122,9 @@ export function StatsChart() {
             <ChartContainer config={{ total_cost: { label: t('headline.allTime') } }} className="h-40 w-full">
                 <AreaChart accessibilityLayer data={chartData}>
                     <defs>
-                        <linearGradient id="fillCost" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-                            <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.05} />
+                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={chartColor} stopOpacity={0.35} />
+                            <stop offset="95%" stopColor={chartColor} stopOpacity={0.05} />
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -133,7 +138,7 @@ export function StatsChart() {
                         }}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                    <Area type="monotone" dataKey="total_cost" stroke="var(--chart-1)" fill="url(#fillCost)" />
+                    <Area type="monotone" dataKey="total_cost" stroke={chartColor} fill={`url(#${gradientId})`} />
                 </AreaChart>
             </ChartContainer>
         </section>
