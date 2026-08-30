@@ -289,7 +289,7 @@ export function ChannelStats({ channel, stats }: { channel: Channel; stats: Stat
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums @md/stats:w-72 @md/stats:grid-cols-5 @md/stats:gap-x-2">
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums @md/stats:w-72 @md/stats:grid-cols-5 @md/stats:gap-x-3">
                                         <div className="flex items-center gap-1">
                                             <MessageSquare className="size-3.5 shrink-0 text-chart-1" />
                                             <MetricValue metric={model.count} />
