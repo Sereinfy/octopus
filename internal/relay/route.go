@@ -65,10 +65,13 @@ func ResetRouteState(groupID int) {
 
 // pickGroupItem 按分组模式选择本轮目标成员, 没有可用成员时返回零值; group.Items 已按 Priority 升序排列。
 // 渠道是否可用不在此判断: 渠道禁用或缺少密钥由调用方发现并作为一轮失败上报, 该成员随即进入冷却而在后续轮次被跳过。
-func pickGroupItem(group model.Group) model.GroupItem {
+func pickGroupItem(group model.Group, want model.Protocol) model.GroupItem {
+	eligible := func(item model.GroupItem) bool {
+		return want == 0 || item.Protocols&want != 0
+	}
 	if group.Mode == model.GroupModeManual {
 		for _, item := range group.Items {
-			if item.ID == group.ActiveItemID {
+			if item.ID == group.ActiveItemID && eligible(item) {
 				return item
 			}
 		}
@@ -86,10 +89,16 @@ func pickGroupItem(group model.Group) model.GroupItem {
 
 	// 亲和期内沿用当前成员, 不提前探测已恢复的高优先级成员。
 	if route.CurrentItemID != 0 && route.AffinityUntil > now {
-		return itemOf(group, route.CurrentItemID)
+		item := itemOf(group, route.CurrentItemID)
+		if eligible(item) {
+			return item
+		}
 	}
 
 	for _, item := range group.Items {
+		if !eligible(item) {
+			continue
+		}
 		// 遍历到当前成员说明比它优先级更高的成员都不可选, 沿用当前成员。
 		if item.ID == route.CurrentItemID {
 			break
@@ -112,9 +121,21 @@ func pickGroupItem(group model.Group) model.GroupItem {
 		return item
 	}
 	if route.CurrentItemID != 0 {
-		return itemOf(group, route.CurrentItemID)
+		item := itemOf(group, route.CurrentItemID)
+		if eligible(item) {
+			return item
+		}
 	}
 	return model.GroupItem{}
+}
+
+func groupHasProtocol(group model.Group, want model.Protocol) bool {
+	for _, item := range group.Items {
+		if item.Protocols&want != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // recordRouteSuccess 上报一轮成功: 结束该成员的冷却与探测占用, 并在故障切换后按配置开始亲和。

@@ -17,29 +17,23 @@ import (
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/transformer"
-	"github.com/looplj/axonhub/llm/transformer/anthropic"
-	"github.com/looplj/axonhub/llm/transformer/openai"
-	"github.com/looplj/axonhub/llm/transformer/openai/responses"
 	"github.com/tidwall/sjson"
 )
 
 // Forward 按客户端协议承载一个请求的完整转发过程: 解析请求, 定位分组, 循环选目标请求上游, 直至提交响应或请求结束。
 func Forward(format llm.APIFormat) gin.HandlerFunc {
 	// 客户端协议同时定出入站转换器和请求协议位: 后者随请求状态推给界面, 也是每轮选择上游协议的首选。
-	var inbound transformer.Inbound
-	requestProtocol := model.ProtocolOpenAIChatCompletion
-	switch format {
-	case llm.APIFormatOpenAIResponse:
-		inbound = responses.NewInboundTransformer()
-		requestProtocol = model.ProtocolOpenAIResponse
-	case llm.APIFormatAnthropicMessage:
-		inbound = anthropic.NewInboundTransformer()
-		requestProtocol = model.ProtocolAnthropicMessage
-	default:
-		inbound = openai.NewInboundTransformer()
-	}
+	inbound := inboundForFormat(format)
+	requestProtocol := protocolForFormat(format)
 
 	return func(c *gin.Context) {
+		if isImageFormat(format) {
+			if c.Request.ContentLength > maxImageRequestBody {
+				rejectRequest(c, inbound, errors.New("image request body too large"))
+				return
+			}
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImageRequestBody)
+		}
 		// 完整读取客户端请求, 正文先登记到请求状态, 后续每轮直接改写为当前目标请求。
 		raw, err := httpclient.ReadHTTPRequest(c.Request)
 		if err != nil {
@@ -47,13 +41,25 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			return
 		}
 
-		// 此处只读取选组和分流所需字段; 完整协议校验由同协议上游或跨协议 pipeline 完成。
+		// 图片请求先由入站 transformer 解析, 这样 multipart edit 与 JSON generation 都能取得模型字段。
 		var metadata struct {
 			Model     string `json:"model"`  // 客户端请求的分组名称。
 			Streaming bool   `json:"stream"` // 客户端是否请求流式响应。
 		}
-		if err := json.Unmarshal(raw.Body, &metadata); err != nil {
+		if isImageFormat(format) {
+			parsed, err := inbound.TransformRequest(c.Request.Context(), raw)
+			if err != nil {
+				rejectRequest(c, inbound, err)
+				return
+			}
+			metadata.Model = parsed.Model
+			metadata.Streaming = parsed.Stream != nil && *parsed.Stream
+		} else if err := json.Unmarshal(raw.Body, &metadata); err != nil {
 			rejectRequest(c, inbound, err)
+			return
+		}
+		if isImageFormat(format) && len(raw.Body) > maxImageRequestBody {
+			rejectRequest(c, inbound, errors.New("image request body too large"))
 			return
 		}
 
@@ -74,7 +80,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 		}
 
 		// 登记进程内请求状态, 返回的记录是后续全部状态写入和前端可视化推送的入口。
-		request := newRequestState(metadata.Model, group.ID, requestProtocol, string(raw.Body), c.GetInt("api_key_id"))
+		request := newRequestState(metadata.Model, group.ID, requestProtocol, requestBodyForState(raw, format), c.GetInt("api_key_id"))
 		ctx := c.Request.Context()
 		failedItemID := 0 // 当前累计连续失败次数的成员 ID。
 		failures := 0     // 该成员包含首次请求的连续失败次数。
@@ -96,8 +102,14 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 
 			// 手动模式取人工指定的成员, 故障转移模式按优先级选择未禁用且不在冷却中的成员。
 			// 没有目标时等待重新选择, 期间人工切换渠道, 补齐成员或成员冷却到期即可让请求继续。
-			item := pickGroupItem(group)
+			item := pickGroupItem(group, requestProtocol)
 			if item.ID == 0 {
+				if isImageFormat(format) && !groupHasProtocol(group, requestProtocol) {
+					err := errors.New("no channel with OpenAI Chat authorization is configured for image requests")
+					request.markFailed(err, "", nil)
+					rejectRequestStatus(c, inbound, http.StatusServiceUnavailable, err)
+					return
+				}
 				if !request.wait(ctx, group.RelayConfig.MemberRetryIntervalSeconds) {
 					return
 				}
@@ -125,12 +137,15 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				continue
 			}
 
-			// 将分组成员配置的真实模型写入本轮上游请求。
-			raw.Body, err = sjson.SetBytes(raw.Body, "model", channelModel.Name)
-			if err != nil {
-				request.markFailed(err, "", nil)
-				rejectRequest(c, inbound, err)
-				return
+			// 文本 JSON 请求仍可直接 patch model; 图片请求由 conversion middleware 修改统一请求模型,
+			// 不能改写客户端 multipart body。
+			if !isImageFormat(format) {
+				raw.Body, err = sjson.SetBytes(raw.Body, "model", channelModel.Name)
+				if err != nil {
+					request.markFailed(err, "", nil)
+					rejectRequest(c, inbound, err)
+					return
+				}
 			}
 			// OpenAI Chat 流式响应需显式要求上游在末尾附带用量。
 			if metadata.Streaming && format == llm.APIFormatOpenAIChatCompletion {
@@ -144,7 +159,19 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 
 			// 在渠道授权支持的协议内选出本轮上游协议, 按该协议的路径与授权绑定的凭据构造出站转换器。
 			// 先于登记本轮目标: 选中的协议是本轮目标的一部分, 需与渠道和模型一并推给界面。
-			outbound, targetProtocol, passthrough, err := buildOutbound(channel, grant, *channelKey, requestProtocol)
+			outbound, targetProtocol, passthrough, err := buildOutbound(channel, grant, *channelKey, requestProtocol, format)
+			if errors.Is(err, errNoCompatibleProtocol) {
+				releaseRouteProbe(group, item.ID)
+				if group.Mode == model.GroupModeManual {
+					request.markFailed(err, "", nil)
+					rejectRequest(c, inbound, err)
+					return
+				}
+				if !request.wait(ctx, group.RelayConfig.MemberRetryIntervalSeconds) {
+					return
+				}
+				continue
+			}
 
 			// 为本轮上游调用建立独立取消入口并登记当前目标; 取消原因用于区分人工中止与响应超时。
 			roundCtx, cancelRoundCause := context.WithCancelCause(ctx)
@@ -174,7 +201,7 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 				if passthrough {
 					result, err = sendPassthrough(roundCtx, format, raw, channel, outbound, metadata.Streaming, channelModel.Name)
 				} else {
-					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadata.Streaming)
+					result, err = sendConverted(roundCtx, format, raw, channel, outbound, metadata.Streaming, channelModel.Name)
 				}
 				// 上游调用返回即结束首响应等待; Stop 失败说明已到期, 主动取消可避免等待异步回调完成。
 				if !timeoutTimer.Stop() {
@@ -195,6 +222,12 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 			if err != nil {
 				// 记录本轮上游调用已经结束及其失败原因。
 				request.finishRound(err.Error())
+				if errors.Is(err, transformer.ErrInvalidRequest) || isNonRetryableImageError(err) {
+					releaseRouteProbe(group, item.ID)
+					request.markFailed(err, "", nil)
+					rejectRequest(c, inbound, err)
+					return
+				}
 				// 父上下文结束说明客户端已经取消, 归还探测占用并以取消终态结束请求。
 				if ctx.Err() != nil {
 					releaseRouteProbe(group, item.ID)
@@ -350,10 +383,14 @@ func Forward(format llm.APIFormat) gin.HandlerFunc {
 
 // rejectRequest 以客户端协议的错误格式返回请求级失败, 用于尚未登记状态因而无需定稿的请求。
 func rejectRequest(c *gin.Context, inbound transformer.Inbound, err error) {
+	rejectRequestStatus(c, inbound, http.StatusBadRequest, err)
+}
+
+func rejectRequestStatus(c *gin.Context, inbound transformer.Inbound, status int, err error) {
 	response := inbound.TransformError(c.Request.Context(), &llm.ResponseError{
-		StatusCode: http.StatusBadRequest,
+		StatusCode: status,
 		Detail:     llm.ErrorDetail{Message: err.Error(), Type: "invalid_request_error"},
 	})
-	c.Data(response.StatusCode, "application/json", response.Body)
+	c.Data(status, "application/json", response.Body)
 	c.Abort()
 }

@@ -236,11 +236,14 @@ http://localhost:5173
 | 渠道类型 | 自动补全路径 | 填写 URL | 完整请求地址示例 |
 |----------|-------------|----------|-----------------|
 | OpenAI Chat | `/v1/chat/completions` | `https://api.openai.com` | `https://api.openai.com/v1/chat/completions` |
+| OpenAI Images | `/v1/images/generations`、`/v1/images/edits` | `https://api.openai.com` | 复用 OpenAI Chat 渠道授权，并根据 Chat 路径自动推导图片端点 |
 | OpenAI Responses | `/v1/responses` | `https://api.openai.com` | `https://api.openai.com/v1/responses` |
 | Anthropic | `/v1/messages` | `https://api.anthropic.com` | `https://api.anthropic.com/v1/messages` |
 | Gemini | `/v1beta/models/:model:generateContent` | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` |
 
 > 💡 **提示**：Base URL 无需包含 `/v1`、`/v1beta` 或具体的 API 端点路径，程序会自动处理。
+
+OpenAI 图片生成和图片编辑复用渠道授权中的 Chat 勾选项，无需新增图片权限或图片路径配置。
 
 ---
 

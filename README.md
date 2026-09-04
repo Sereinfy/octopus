@@ -235,11 +235,14 @@ The program automatically appends the API version and endpoint path based on the
 | Channel Type | Auto-appended Path | Base URL | Full Request URL Example |
 |--------------|-------------------|----------|--------------------------|
 | OpenAI Chat | `/v1/chat/completions` | `https://api.openai.com` | `https://api.openai.com/v1/chat/completions` |
+| OpenAI Images | `/v1/images/generations`, `/v1/images/edits` | `https://api.openai.com` | Uses the OpenAI Chat channel authorization and derives the image endpoint from its Chat path |
 | OpenAI Responses | `/v1/responses` | `https://api.openai.com` | `https://api.openai.com/v1/responses` |
 | Anthropic | `/v1/messages` | `https://api.anthropic.com` | `https://api.anthropic.com/v1/messages` |
 | Gemini | `/v1beta/models/:model:generateContent` | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` |
 
 > 💡 **Tip**: The Base URL does not need to include `/v1`, `/v1beta`, or a specific API endpoint path - the program handles them automatically.
+
+OpenAI image generation and image edits use the same Chat authorization checkbox in a channel grant. No additional image permission or path configuration is required.
 
 ---
 
